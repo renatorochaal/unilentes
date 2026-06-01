@@ -1,0 +1,20 @@
+{
+  "name": "unilentes",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.0.9",
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "lint": "pnpm -r --if-present lint",
+    "api:dev": "pnpm --dir apps/api dev",
+    "api:build": "pnpm --dir apps/api build",
+    "api:start": "pnpm --dir apps/api start",
+    "api:db:generate": "pnpm --dir apps/api db:generate",
+    "api:db:migrate": "pnpm --dir apps/api db:migrate",
+    "api:db:seed": "pnpm --dir apps/api db:seed",
+    "front:dev": "pnpm --dir apps/front dev",
+    "front:build": "pnpm --dir apps/front build",
+    "front:preview": "pnpm --dir apps/front preview",
+    "deploy:build": "pnpm api:db:generate && pnpm api:build && pnpm front:build"
+  }
+}

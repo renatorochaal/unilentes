@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+apps/*/node_modules/
+
+# Build output
+dist/
+apps/*/dist/
+apps/*/dist-ssr/
+
+# Environment
+.env
+.env.local
+.env.*.local
+apps/*/.env
+apps/*/.env.local
+apps/*/.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# Generated exports
+apps/api/exports/*
+!apps/api/exports/.gitkeep
+
+# Prisma local databases
+apps/api/prisma/*.db
+apps/api/prisma/*.db-journal
+
+# IDE / Editors
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
