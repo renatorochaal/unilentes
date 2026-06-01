@@ -51,7 +51,7 @@ model Brand {
 
 model Category {
   id          String    @id @default(uuid())
-  name        String    // Ex: "Multifocais", "Visão Simples"
+  name        String    @unique // Ex: "Multifocais", "Visão Simples"
   description String? @db.Text
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
