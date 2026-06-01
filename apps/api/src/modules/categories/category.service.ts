@@ -13,7 +13,7 @@ export type CategoryInput = z.infer<typeof categorySchema>
 export const categoryService = {
   async list(search?: string) {
     return prisma.category.findMany({
-      where: search ? { name: { contains: search, mode: 'insensitive' } } : undefined,
+      where: search ? { name: { contains: search } } : undefined,
       orderBy: { name: 'asc' },
       include: { _count: { select: { products: true } } },
     })
