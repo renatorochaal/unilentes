@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// AUTENTICAÇÃO
+// ─────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  password     String   // bcrypt hash
+  role         Role     @default(USER)
+  refreshToken String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  exports      Export[]
+
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+// ─────────────────────────────────────────────
+// DOMÍNIO PRINCIPAL
+// ─────────────────────────────────────────────
+
+model Brand {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  logoUrl     String?
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+  catalogs    Catalog[]
+
+  @@map("brands")
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    // Ex: "Multifocais", "Visão Simples"
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+  catalogs    Catalog[]
+
+  @@map("categories")
+}
+
+model Supplier {
+  id        String    @id @default(uuid())
+  name      String
+  cnpj      String?   @unique
+  email     String?
+  phone     String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+
+  @@map("suppliers")
+}
+
+model Treatment {
+  id        String             @id @default(uuid())
+  name      String             @unique  // Ex: "DV Chrome", "DV Silver"
+  isActive  Boolean            @default(true)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  prices    ProductTreatment[]
+
+  @@map("treatments")
+}
+
+model Product {
+  id           String             @id @default(uuid())
+  code         String             @unique  // Cod. WEB ex: "5179"
+  name         String             // Material ex: "1.50", "Poli"
+  brandId      String
+  categoryId   String
+  supplierId   String?
+  spherical    String?            // Esférico
+  cylindrical  String?            // Cil
+  diameter     String?            // Ø
+  addition     String?            // Adição
+  priceNoAR    Decimal?           @db.Decimal(10, 2)  // Sem AR
+  height       String?            // Ex: "14 A 18"
+  availability String?            // Disponibilidade
+  isActive     Boolean            @default(true)
+  notes        String?            // Observações clínicas
+  imageUrl     String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  brand      Brand              @relation(fields: [brandId], references: [id])
+  category   Category           @relation(fields: [categoryId], references: [id])
+  supplier   Supplier?          @relation(fields: [supplierId], references: [id])
+  treatments ProductTreatment[]
+
+  @@index([brandId])
+  @@index([categoryId])
+  @@index([code])
+  @@map("products")
+}
+
+model ProductTreatment {
+  id          String    @id @default(uuid())
+  productId   String
+  treatmentId String
+  price       Decimal   @db.Decimal(10, 2)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  treatment Treatment @relation(fields: [treatmentId], references: [id])
+
+  @@unique([productId, treatmentId])
+  @@map("product_treatments")
+}
+
+// ─────────────────────────────────────────────
+// CATÁLOGO (TABELA ONLINE)
+// ─────────────────────────────────────────────
+
+model Catalog {
+  id           String    @id @default(uuid())
+  title        String    // Ex: "LENTE ZEISS MULTIFOCAIS"
+  subtitle     String?   // Ex: "Classic Plus Freeform Blueguard"
+  badge        String?   // Ex: "ALTURAS 14 A 18"
+  brandId      String
+  categoryId   String
+  headerImage  String?   // URL da imagem de capa
+  description  String?
+  isActive     Boolean   @default(true)
+  sortOrder    Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  brand    Brand    @relation(fields: [brandId], references: [id])
+  category Category @relation(fields: [categoryId], references: [id])
+
+  @@map("catalogs")
+}
+
+// ─────────────────────────────────────────────
+// EXPORTAÇÃO
+// ─────────────────────────────────────────────
+
+model Export {
+  id          String       @id @default(uuid())
+  userId      String
+  type        ExportType
+  status      ExportStatus @default(QUEUED)
+  fileName    String?
+  fileUrl     String?      // Caminho do arquivo gerado
+  fileSize    Int?         // Em bytes
+  filters     Json?        // Filtros aplicados
+  error       String?
+  createdAt   DateTime     @default(now())
+  completedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("exports")
+}
+
+enum ExportType {
+  PDF
+  CSV
+}
+
+enum ExportStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
