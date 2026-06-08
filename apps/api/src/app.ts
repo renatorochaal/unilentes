@@ -11,6 +11,8 @@ import { supplierRouter } from './modules/suppliers/supplier.routes'
 import { treatmentRouter } from './modules/treatments/treatment.routes'
 import { catalogRouter } from './modules/catalogs/catalog.routes'
 import { exportRouter } from './modules/exports/export.routes'
+import { publicRouter } from './modules/public/public.routes'
+import { uploadRouter } from './modules/uploads/upload.routes'
 
 export const app = express()
 
@@ -22,8 +24,9 @@ app.use(cors({
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
-// ── Servir arquivos de export ────────────────────────────────────────
+// ── Servir arquivos estáticos ────────────────────────────────────────
 app.use('/exports', express.static(path.resolve(env.EXPORTS_DIR)))
+app.use('/uploads', express.static(path.resolve('./uploads')))
 
 // ── Rotas ───────────────────────────────────────────────────────────
 app.use('/api/auth',        authRouter)
@@ -34,6 +37,8 @@ app.use('/api/suppliers',   supplierRouter)
 app.use('/api/treatments',  treatmentRouter)
 app.use('/api/catalogs',    catalogRouter)
 app.use('/api/exports',     exportRouter)
+app.use('/api/public',      publicRouter)
+app.use('/api/uploads',     uploadRouter)
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })

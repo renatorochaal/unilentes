@@ -4,6 +4,12 @@ import { z } from 'zod'
 import { paginate } from '../../shared/middleware/validate'
 import { Request } from 'express'
 
+/** Aceita URLs absolutas (http/https) e paths relativos (/uploads/...) */
+const urlOrPath = z.string().refine(
+  (v) => v.startsWith('/') || v.startsWith('http://') || v.startsWith('https://'),
+  { message: 'URL ou caminho inválido' }
+)
+
 export const productTreatmentSchema = z.object({
   treatmentId: z.string().uuid(),
   price:       z.number().nonnegative(),
@@ -24,7 +30,7 @@ export const productSchema = z.object({
   availability: z.string().optional().nullable(),
   isActive:     z.boolean().optional(),
   notes:        z.string().optional().nullable(),
-  imageUrl:     z.string().url().optional().nullable(),
+  imageUrl:     urlOrPath.optional().nullable(),
   treatments:   z.array(productTreatmentSchema).optional(),
 })
 

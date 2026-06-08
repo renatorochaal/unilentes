@@ -5,15 +5,19 @@ import { z } from 'zod'
 export const categorySchema = z.object({
   name:        z.string().min(1, 'Nome obrigatório.'),
   description: z.string().optional().nullable(),
+  brandId:     z.string().optional().nullable(),
   isActive:    z.boolean().optional(),
 })
 
 export type CategoryInput = z.infer<typeof categorySchema>
 
 export const categoryService = {
-  async list(search?: string) {
+  async list(search?: string, brandId?: string) {
     return prisma.category.findMany({
-      where: search ? { name: { contains: search } } : undefined,
+      where: {
+        ...(search ? { name: { contains: search, mode: 'insensitive' as const } } : {}),
+        ...(brandId ? { brandId } : {}),
+      },
       orderBy: { name: 'asc' },
       include: { _count: { select: { products: true } } },
     })

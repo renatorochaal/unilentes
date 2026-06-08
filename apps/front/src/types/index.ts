@@ -21,15 +21,19 @@ export interface Brand {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  categories?: Category[]
+  _count?: { products: number }
 }
 
 export interface Category {
   id: string
   name: string
   description?: string | null
+  brandId?: string | null
   isActive: boolean
   createdAt: string
   updatedAt: string
+  _count?: { products: number }
 }
 
 export interface Supplier {
@@ -83,6 +87,23 @@ export interface Product {
   treatments: ProductTreatment[]
 }
 
+// ── Catalog ───────────────────────────────────────────────────────────
+export interface ColumnVisibility {
+  spherical?: boolean
+  cylindrical?: boolean
+  diameter?: boolean
+  addition?: boolean
+  priceNoAR?: boolean
+  availability?: boolean
+}
+
+export interface CatalogSection {
+  id: string
+  title: string
+  headerImage?: string | null
+  productIds: string[]
+}
+
 export interface Catalog {
   id: string
   title: string
@@ -93,10 +114,18 @@ export interface Catalog {
   headerImage?: string | null
   description?: string | null
   isActive: boolean
+  sortOrder: number
+  crmUrl?: string | null
+  visibleColumns?: ColumnVisibility | null
+  sections?: CatalogSection[] | null
   createdAt: string
   updatedAt: string
   brand: Pick<Brand, 'id' | 'name' | 'logoUrl'>
   category: Pick<Category, 'id' | 'name'>
+}
+
+export interface CatalogWithProducts extends Catalog {
+  products: Product[]
 }
 
 export type ExportType = 'PDF' | 'CSV'

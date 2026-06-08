@@ -1,15 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { brandService } from '../services/brand.service'
 import { Modal } from '../components/ui/Modal'
 import { PageLoader } from '../components/ui/LoadingSpinner'
 import { Pagination } from '../components/ui/Pagination'
+import { ImageUpload } from '../components/ui/ImageUpload'
 import type { Brand } from '../types'
 import { useForm } from 'react-hook-form'
 
 interface BrandForm { name: string; description?: string; logoUrl?: string; isActive: boolean }
 
 export function BrandsPage() {
+  const navigate = useNavigate()
   const [items, setItems]     = useState<Brand[]>([])
   const [meta, setMeta]       = useState({ page: 1, totalPages: 1, total: 0, limit: 20 })
   const [loading, setLoading] = useState(true)
@@ -30,10 +33,10 @@ export function BrandsPage() {
 
   useEffect(() => { load() }, [load])
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<BrandForm>()
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<BrandForm>()
+  const logoUrl = watch('logoUrl')
 
-  function openCreate() { reset({ name: '', isActive: true }); setEditing(null); setModal(true) }
-  function openEdit(b: Brand) { reset({ name: b.name, description: b.description ?? '', logoUrl: b.logoUrl ?? '', isActive: b.isActive }); setEditing(b); setModal(true) }
+  function openCreate() { reset({ name: '', isActive: true, logoUrl: '' }); setEditing(null); setModal(true) }
 
   async function onSubmit(d: BrandForm) {
     setSaving(true)
@@ -76,16 +79,34 @@ export function BrandsPage() {
         ) : (
           <>
             <table className="table-base">
-              <thead><tr><th>Nome</th><th>Descrição</th><th>Status</th><th className="text-right">Ações</th></tr></thead>
+              <thead><tr><th className="w-12"></th><th>Nome</th><th>Descrição</th><th>Status</th><th className="text-right">Ações</th></tr></thead>
               <tbody>
                 {items.map((b) => (
                   <tr key={b.id}>
-                    <td className="font-semibold text-text-primary">{b.name}</td>
+                    <td>
+                      {b.logoUrl ? (
+                        <img src={b.logoUrl} alt={b.name} className="w-8 h-8 object-contain rounded-lg border border-border bg-gray-50 p-0.5" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-lg border border-border bg-gray-100 flex items-center justify-center text-text-placeholder">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                          </svg>
+                        </div>
+                      )}
+                    </td>
+                    <td className="font-semibold text-text-primary">
+                      <button
+                        onClick={() => navigate(`/brands/${b.id}`)}
+                        className="hover:text-primary hover:underline transition-colors text-left"
+                      >
+                        {b.name}
+                      </button>
+                    </td>
                     <td className="text-text-secondary text-sm">{b.description ?? '—'}</td>
                     <td><span className={b.isActive ? 'badge-success' : 'badge-neutral'}>{b.isActive ? 'Ativa' : 'Inativa'}</span></td>
                     <td>
                       <div className="flex justify-end gap-1">
-                        <button onClick={() => openEdit(b)} className="btn-ghost p-1.5" title="Editar">
+                        <button onClick={() => navigate(`/brands/${b.id}`)} className="btn-ghost p-1.5" title="Detalhes">
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                         </button>
                         <button onClick={() => setDelTarget(b)} className="btn-ghost p-1.5 hover:text-danger hover:bg-danger-light" title="Excluir">
@@ -114,8 +135,13 @@ export function BrandsPage() {
             <input className="input-base" {...register('description')} />
           </div>
           <div>
-            <label className="label-base">URL do Logo</label>
-            <input className="input-base" type="url" placeholder="https://..." {...register('logoUrl')} />
+            <label className="label-base">Logo</label>
+            <ImageUpload
+              value={logoUrl ?? null}
+              onChange={url => setValue('logoUrl', url ?? '')}
+              shape="square"
+              size={72}
+            />
           </div>
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" className="accent-primary w-4 h-4" {...register('isActive')} />

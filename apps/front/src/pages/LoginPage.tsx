@@ -21,6 +21,7 @@ export function LoginPage() {
     setLoading(true)
     try {
       await login(email.trim(), password)
+      toast.success('Login realizado!')
       navigate('/catalog', { replace: true })
     } catch {
       toast.error('E-mail ou senha incorretos.')

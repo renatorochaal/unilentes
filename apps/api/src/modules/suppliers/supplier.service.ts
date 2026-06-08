@@ -15,7 +15,7 @@ export type SupplierInput = z.infer<typeof supplierSchema>
 export const supplierService = {
   async list(search?: string) {
     return prisma.supplier.findMany({
-      where: search ? { name: { contains: search } } : undefined,
+      where: search ? { name: { contains: search, mode: 'insensitive' } } : undefined,
       orderBy: { name: 'asc' },
     })
   },

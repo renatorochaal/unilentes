@@ -2,22 +2,57 @@ import { prisma } from '../../config/prisma'
 import { AppError } from '../../shared/middleware/error.handler'
 import { z } from 'zod'
 
+/** Aceita URLs absolutas (http/https) e paths relativos (/uploads/...) */
+const urlOrPath = z.string().refine(
+  (v) => v.startsWith('/') || v.startsWith('http://') || v.startsWith('https://'),
+  { message: 'URL ou caminho inválido' }
+)
+
+const columnVisibilitySchema = z.object({
+  spherical:    z.boolean().optional(),
+  cylindrical:  z.boolean().optional(),
+  diameter:     z.boolean().optional(),
+  addition:     z.boolean().optional(),
+  priceNoAR:    z.boolean().optional(),
+  availability: z.boolean().optional(),
+}).optional().nullable()
+
+const catalogSectionSchema = z.object({
+  id:          z.string(),
+  title:       z.string(),
+  headerImage: urlOrPath.optional().nullable(),
+  productIds:  z.array(z.string()),
+})
+
 export const catalogSchema = z.object({
-  title:       z.string().min(1),
-  subtitle:    z.string().optional().nullable(),
-  badge:       z.string().optional().nullable(),
-  brandId:     z.string().uuid(),
-  categoryId:  z.string().uuid(),
-  headerImage: z.string().url().optional().nullable(),
-  description: z.string().optional().nullable(),
-  isActive:    z.boolean().optional(),
-  sortOrder:   z.number().int().optional(),
+  title:          z.string().min(1),
+  subtitle:       z.string().optional().nullable(),
+  badge:          z.string().optional().nullable(),
+  brandId:        z.string().uuid(),
+  categoryId:     z.string().uuid(),
+  headerImage:    urlOrPath.optional().nullable(),
+  description:    z.string().optional().nullable(),
+  isActive:       z.boolean().optional(),
+  sortOrder:      z.number().int().optional(),
+  crmUrl:         urlOrPath.optional().nullable(),
+  visibleColumns: columnVisibilitySchema,
+  sections:       z.array(catalogSectionSchema).optional().nullable(),
 })
 
 export const catalogService = {
   async list() {
     return prisma.catalog.findMany({
       where: { isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+      include: {
+        brand:    { select: { id: true, name: true, logoUrl: true } },
+        category: { select: { id: true, name: true } },
+      },
+    })
+  },
+
+  async listAll() {
+    return prisma.catalog.findMany({
       orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
       include: {
         brand:    { select: { id: true, name: true, logoUrl: true } },
@@ -36,7 +71,6 @@ export const catalogService = {
     })
     if (!catalog) throw new AppError('Catálogo não encontrado.', 404)
 
-    // Buscar produtos da mesma marca e categoria
     const products = await prisma.product.findMany({
       where: {
         brandId:    catalog.brandId,
@@ -57,7 +91,7 @@ export const catalogService = {
 
   async create(data: z.infer<typeof catalogSchema>) {
     return prisma.catalog.create({
-      data,
+      data: data as Parameters<typeof prisma.catalog.create>[0]['data'],
       include: {
         brand:    { select: { id: true, name: true } },
         category: { select: { id: true, name: true } },
@@ -69,7 +103,7 @@ export const catalogService = {
     await this.getById(id)
     return prisma.catalog.update({
       where: { id },
-      data,
+      data: data as Parameters<typeof prisma.catalog.update>[0]['data'],
       include: {
         brand:    { select: { id: true, name: true } },
         category: { select: { id: true, name: true } },

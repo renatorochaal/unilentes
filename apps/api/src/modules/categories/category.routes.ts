@@ -9,7 +9,7 @@ categoryRouter.use(authGuard)
 
 categoryRouter.get('/', async (req: Request<{ id: string }>, res: Response, next: NextFunction) => {
   try {
-    const data = await categoryService.list(req.query.search as string)
+    const data = await categoryService.list(req.query.search as string, req.query.brandId as string)
     res.json({ status: 'success', data })
   } catch (e) { next(e) }
 })

@@ -2,9 +2,12 @@ import { api } from './api'
 import type { Category, ApiResponse } from '../types'
 
 export const categoryService = {
-  async list(params?: { search?: string; page?: number; limit?: number }) {
+  async list(params?: { search?: string; brandId?: string; page?: number; limit?: number }) {
+    const queryParams: Record<string, string> = {}
+    if (params?.search) queryParams.search = params.search
+    if (params?.brandId) queryParams.brandId = params.brandId
     const { data } = await api.get<{ status: string; data: Category[] }>('/api/categories', {
-      params: params?.search ? { search: params.search } : undefined,
+      params: Object.keys(queryParams).length ? queryParams : undefined,
     })
     const all   = data.data ?? []
     const limit = params?.limit ?? 20

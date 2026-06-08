@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
-import { Toaster } from 'react-hot-toast'
 
 export function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -48,17 +47,6 @@ export function AppLayout() {
           </div>
         </main>
       </div>
-
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          style: {
-            fontFamily: 'Inter, sans-serif',
-            fontSize: '14px',
-            borderRadius: '10px',
-          },
-        }}
-      />
     </div>
   )
 }

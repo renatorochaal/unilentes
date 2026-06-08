@@ -7,7 +7,7 @@ export const exportService = {
     return data.data ?? []
   },
 
-  async create(payload: { type: 'PDF' | 'CSV'; filters?: Record<string, unknown> }) {
+  async create(payload: Record<string, unknown>) {
     const { data } = await api.post<ApiResponse<Export>>('/api/exports', payload)
     return data.data
   },

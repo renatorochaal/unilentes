@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -17,7 +17,7 @@ model User {
   email        String   @unique
   password     String   // bcrypt hash
   role         Role     @default(USER)
-  refreshToken String? @db.Text
+  refreshToken String?
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -38,27 +38,32 @@ enum Role {
 model Brand {
   id          String    @id @default(uuid())
   name        String    @unique
-  logoUrl     String? @db.Text
-  description String? @db.Text
+  logoUrl     String?
+  description String?
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   products    Product[]
   catalogs    Catalog[]
+  categories  Category[]
 
   @@map("brands")
 }
 
 model Category {
   id          String    @id @default(uuid())
-  name        String    @unique // Ex: "Multifocais", "Visão Simples"
-  description String? @db.Text
+  name        String    // Ex: "Multifocais", "Visão Simples"
+  description String?
+  brandId     String?
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   products    Product[]
   catalogs    Catalog[]
 
+  brand       Brand?    @relation(fields: [brandId], references: [id])
+
+  @@index([brandId])
   @@map("categories")
 }
 
@@ -102,8 +107,8 @@ model Product {
   height       String?            // Ex: "14 A 18"
   availability String?            // Disponibilidade
   isActive     Boolean            @default(true)
-  notes        String? @db.Text            // Observações clínicas
-  imageUrl     String? @db.Text
+  notes        String?            // Observações clínicas
+  imageUrl     String?
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
 
@@ -140,16 +145,19 @@ model ProductTreatment {
 model Catalog {
   id           String    @id @default(uuid())
   title        String    // Ex: "LENTE ZEISS MULTIFOCAIS"
-  subtitle     String? @db.Text   // Ex: "Classic Plus Freeform Blueguard"
-  badge        String? @db.Text   // Ex: "ALTURAS 14 A 18"
+  subtitle     String?   // Ex: "Classic Plus Freeform Blueguard"
+  badge        String?   // Ex: "ALTURAS 14 A 18"
   brandId      String
   categoryId   String
-  headerImage  String? @db.Text   // URL da imagem de capa
-  description  String? @db.Text
-  isActive     Boolean   @default(true)
-  sortOrder    Int       @default(0)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  headerImage  String?   // URL da imagem de capa
+  description  String?
+  isActive       Boolean   @default(true)
+  sortOrder      Int       @default(0)
+  crmUrl         String?
+  visibleColumns Json?
+  sections       Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   brand    Brand    @relation(fields: [brandId], references: [id])
   category Category @relation(fields: [categoryId], references: [id])
@@ -166,11 +174,11 @@ model Export {
   userId      String
   type        ExportType
   status      ExportStatus @default(QUEUED)
-  fileName    String? @db.Text
-  fileUrl     String? @db.Text      // Caminho do arquivo gerado
+  fileName    String?
+  fileUrl     String?      // Caminho do arquivo gerado
   fileSize    Int?         // Em bytes
-  filters     Json?        // Filtros aplicados
-  error       String? @db.Text
+  filters     Json?        // Filtros aplicados (inclui brandOrder: string[])
+  error       String?
   createdAt   DateTime     @default(now())
   completedAt DateTime?
 

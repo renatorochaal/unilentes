@@ -1,18 +1,20 @@
 import { prisma } from '../../config/prisma'
 import { AppError } from '../../shared/middleware/error.handler'
-import { ExportStatus, ExportType } from '@prisma/client'
+import { Prisma, ExportStatus, ExportType } from '@prisma/client'
 import { env } from '../../config/env'
 import path from 'path'
 import fs from 'fs'
 import { generateCsv } from './csv.generator'
-import { generatePdf } from './pdf.generator'
+import { generatePdf, type CatalogExportMeta, type CatalogSection } from './pdf.generator'
 import { z } from 'zod'
 
 export const exportRequestSchema = z.object({
-  type:       z.enum(['PDF', 'CSV']),
-  brandId:    z.string().uuid().optional(),
-  categoryId: z.string().uuid().optional(),
-  catalogId:  z.string().uuid().optional(),
+  type:           z.enum(['PDF', 'CSV']),
+  brandId:        z.string().uuid().optional(),
+  categoryId:     z.string().uuid().optional(),
+  catalogId:      z.string().uuid().optional(),
+  brandOrder:     z.array(z.string().uuid()).optional(),
+  headerImageUrl: z.string().optional().nullable(),
 })
 
 export type ExportFilters = z.infer<typeof exportRequestSchema>
@@ -65,16 +67,51 @@ export const exportService = {
     const filters = (record.filters ?? {}) as ExportFilters
 
     try {
+      // Resolver filtros de catálogo antes da query de produtos
+      let catalogMeta: CatalogExportMeta | undefined
+      const productWhere: Prisma.ProductWhereInput = { isActive: true }
+
+      if (filters.catalogId) {
+        const catalog = await prisma.catalog.findUnique({
+          where: { id: filters.catalogId },
+          select: {
+            title: true, badge: true, sections: true,
+            brandId: true, categoryId: true,
+            headerImage: true,
+            brand: { select: { name: true, logoUrl: true } },
+          },
+        })
+        if (catalog) {
+          const sections = catalog.sections as CatalogSection[] | null
+          catalogMeta = {
+            title: catalog.title,
+            badge: catalog.badge,
+            sections,
+            headerImage: catalog.headerImage,
+            brandName: catalog.brand.name,
+            brandLogoUrl: catalog.brand.logoUrl,
+          }
+          if (sections?.length) {
+            // Filtrar apenas os produtos que pertencem às seções
+            const allIds = sections.flatMap((s) => s.productIds)
+            productWhere.id = { in: allIds }
+          } else {
+            // Sem seções: filtrar por marca + categoria do catálogo
+            productWhere.brandId    = catalog.brandId
+            productWhere.categoryId = catalog.categoryId
+          }
+        }
+      } else {
+        if (filters.brandId)    productWhere.brandId    = filters.brandId
+        if (filters.categoryId) productWhere.categoryId = filters.categoryId
+      }
+
       // Buscar produtos com base nos filtros
-      const products = await prisma.product.findMany({
-        where: {
-          isActive: true,
-          ...(filters.brandId    ? { brandId: filters.brandId }       : {}),
-          ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
-        },
+      const rawProducts = await prisma.product.findMany({
+        where: productWhere,
         orderBy: { code: 'asc' },
         include: {
-          brand:    { select: { name: true } },
+          brand:    { select: { id: true, name: true } },
           category: { select: { name: true } },
           treatments: {
             include: { treatment: { select: { name: true } } },
@@ -82,6 +119,18 @@ export const exportService = {
           },
         },
       })
+
+      // Reordenar por brandOrder se fornecido
+      const products = filters.brandOrder?.length
+        ? [...rawProducts].sort((a, b) => {
+            const ai = filters.brandOrder!.indexOf(a.brand.id)
+            const bi = filters.brandOrder!.indexOf(b.brand.id)
+            const aOrder = ai === -1 ? 9999 : ai
+            const bOrder = bi === -1 ? 9999 : bi
+            if (aOrder !== bOrder) return aOrder - bOrder
+            return a.code.localeCompare(b.code)
+          })
+        : rawProducts
 
       const exportsDir = path.resolve(env.EXPORTS_DIR)
       const timestamp  = Date.now()
@@ -98,7 +147,7 @@ export const exportService = {
       } else {
         fileName = `catalogo_${timestamp}.pdf`
         filePath = path.join(exportsDir, fileName)
-        const pdfBuffer = await generatePdf(products)
+        const pdfBuffer = await generatePdf(products, catalogMeta, filters.headerImageUrl)
         fs.writeFileSync(filePath, pdfBuffer)
         fileSize = pdfBuffer.length
       }

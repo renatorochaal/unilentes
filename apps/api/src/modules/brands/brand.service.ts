@@ -2,9 +2,15 @@ import { prisma } from '../../config/prisma'
 import { AppError } from '../../shared/middleware/error.handler'
 import { z } from 'zod'
 
+/** Aceita URLs absolutas (http/https) e paths relativos (/uploads/...) */
+const urlOrPath = z.string().refine(
+  (v) => v.startsWith('/') || v.startsWith('http://') || v.startsWith('https://'),
+  { message: 'URL ou caminho inválido' }
+)
+
 export const brandSchema = z.object({
   name:        z.string().min(1, 'Nome obrigatório.'),
-  logoUrl:     z.string().url().optional().nullable(),
+  logoUrl:     urlOrPath.optional().nullable(),
   description: z.string().optional().nullable(),
   isActive:    z.boolean().optional(),
 })
@@ -14,7 +20,7 @@ export type BrandInput = z.infer<typeof brandSchema>
 export const brandService = {
   async list(search?: string) {
     return prisma.brand.findMany({
-      where: search ? { name: { contains: search } } : undefined,
+      where: search ? { name: { contains: search, mode: 'insensitive' } } : undefined,
       orderBy: { name: 'asc' },
       include: { _count: { select: { products: true } } },
     })
@@ -23,7 +29,13 @@ export const brandService = {
   async getById(id: string) {
     const brand = await prisma.brand.findUnique({
       where: { id },
-      include: { _count: { select: { products: true } } },
+      include: {
+        _count: { select: { products: true } },
+        categories: {
+          orderBy: { name: 'asc' },
+          include: { _count: { select: { products: true } } },
+        },
+      },
     })
     if (!brand) throw new AppError('Marca não encontrada.', 404)
     return brand

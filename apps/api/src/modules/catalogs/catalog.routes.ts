@@ -7,9 +7,12 @@ import { validate } from '../../shared/middleware/validate'
 export const catalogRouter = Router()
 catalogRouter.use(authGuard)
 
-catalogRouter.get('/', async (_req: Request, res: Response, next: NextFunction) => {
+catalogRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const data = await catalogService.list()
+    // ?all=true retorna inativos também (para o painel admin)
+    const data = req.query.all === 'true'
+      ? await catalogService.listAll()
+      : await catalogService.list()
     res.json({ status: 'success', data })
   } catch (e) { next(e) }
 })
