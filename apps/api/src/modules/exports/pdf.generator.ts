@@ -298,18 +298,33 @@ export async function generatePdf(
 ): Promise<Buffer> {
   const html = buildHtml(products, catalogMeta, headerImageUrl)
   const chromeRuntimeDir = path.resolve('./tmp/chrome')
+  const chromeHomeDir = path.join(chromeRuntimeDir, 'home')
   const chromeUserDataDir = path.join(chromeRuntimeDir, 'profile')
   const chromeCrashDumpsDir = path.join(chromeRuntimeDir, 'crashpad')
+  const chromeCacheDir = path.join(chromeRuntimeDir, 'cache')
+  const chromeConfigDir = path.join(chromeRuntimeDir, 'config')
+  const chromeTmpDir = path.join(chromeRuntimeDir, 'tmp')
 
-  fs.mkdirSync(chromeUserDataDir, { recursive: true })
-  fs.mkdirSync(chromeCrashDumpsDir, { recursive: true })
+  for (const dir of [
+    chromeHomeDir,
+    chromeUserDataDir,
+    chromeCrashDumpsDir,
+    chromeCacheDir,
+    chromeConfigDir,
+    chromeTmpDir,
+  ]) {
+    fs.mkdirSync(dir, { recursive: true })
+  }
 
   const puppeteer = await loadPuppeteer()
   const browser = await puppeteer.launch({
     headless: true,
     env: {
       ...process.env,
-      XDG_CACHE_HOME: process.env.XDG_CACHE_HOME ?? path.resolve('./tmp/cache'),
+      HOME: chromeHomeDir,
+      XDG_CACHE_HOME: chromeCacheDir,
+      XDG_CONFIG_HOME: chromeConfigDir,
+      TMPDIR: chromeTmpDir,
     },
     args: [
       '--no-sandbox',
@@ -318,6 +333,10 @@ export async function generatePdf(
       '--disable-dev-shm-usage',
       '--disable-crash-reporter',
       '--disable-crashpad',
+      '--disable-breakpad',
+      '--disable-extensions',
+      '--no-first-run',
+      '--no-default-browser-check',
       '--noerrdialogs',
       `--user-data-dir=${chromeUserDataDir}`,
       `--crash-dumps-dir=${chromeCrashDumpsDir}`,
