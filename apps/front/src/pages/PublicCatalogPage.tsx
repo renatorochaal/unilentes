@@ -484,7 +484,6 @@ export function PublicCatalogPage() {
                           paddingLeft: '2.25rem',
                           paddingRight: search ? '2.25rem' : '0.75rem',
                           borderColor: '#E5E7EB',
-                          focusRingColor: 'rgba(84,167,217,0.3)',
                         }}
                       />
                       {search && (
