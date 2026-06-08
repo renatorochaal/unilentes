@@ -297,7 +297,7 @@ export async function generatePdf(
   headerImageUrl?: string | null,
 ): Promise<Buffer> {
   const html = buildHtml(products, catalogMeta, headerImageUrl)
-  const chromeRuntimeDir = path.resolve('./tmp/chrome')
+  const chromeRuntimeDir = process.env.CHROME_RUNTIME_DIR ?? path.join('/tmp', `unilentes-chrome-${process.env.USER ?? 'app'}`)
   const chromeHomeDir = path.join(chromeRuntimeDir, 'home')
   const chromeUserDataDir = path.join(chromeRuntimeDir, 'profile')
   const chromeCrashDumpsDir = path.join(chromeRuntimeDir, 'crashpad')
