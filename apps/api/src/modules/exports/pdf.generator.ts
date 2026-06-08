@@ -297,10 +297,31 @@ export async function generatePdf(
   headerImageUrl?: string | null,
 ): Promise<Buffer> {
   const html = buildHtml(products, catalogMeta, headerImageUrl)
+  const chromeRuntimeDir = path.resolve('./tmp/chrome')
+  const chromeUserDataDir = path.join(chromeRuntimeDir, 'profile')
+  const chromeCrashDumpsDir = path.join(chromeRuntimeDir, 'crashpad')
+
+  fs.mkdirSync(chromeUserDataDir, { recursive: true })
+  fs.mkdirSync(chromeCrashDumpsDir, { recursive: true })
+
   const puppeteer = await loadPuppeteer()
   const browser = await puppeteer.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
+    env: {
+      ...process.env,
+      XDG_CACHE_HOME: process.env.XDG_CACHE_HOME ?? path.resolve('./tmp/cache'),
+    },
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-gpu',
+      '--disable-dev-shm-usage',
+      '--disable-crash-reporter',
+      '--disable-crashpad',
+      '--noerrdialogs',
+      `--user-data-dir=${chromeUserDataDir}`,
+      `--crash-dumps-dir=${chromeCrashDumpsDir}`,
+    ],
   })
   try {
     const page = await browser.newPage()
