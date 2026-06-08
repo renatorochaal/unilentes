@@ -1,4 +1,3 @@
-import puppeteer from 'puppeteer'
 import { Prisma } from '@prisma/client'
 import path from 'path'
 import fs from 'fs'
@@ -56,6 +55,12 @@ function resolveImageToBase64(url: string | null | undefined): string | null {
     if (url.startsWith('http')) return url
   } catch { /* ignore */ }
   return null
+}
+
+
+async function loadPuppeteer() {
+  const mod = await Function('return import("puppeteer")')() as typeof import('puppeteer')
+  return mod.default ?? mod
 }
 
 function buildHtml(
@@ -292,6 +297,7 @@ export async function generatePdf(
   headerImageUrl?: string | null,
 ): Promise<Buffer> {
   const html = buildHtml(products, catalogMeta, headerImageUrl)
+  const puppeteer = await loadPuppeteer()
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
