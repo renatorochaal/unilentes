@@ -45,8 +45,8 @@ publicRouter.get('/catalogs/:id', async (req: Request<{ id: string }>, res: Resp
         isActive:   true,
         ...(search ? {
           OR: [
-            { code: { contains: search, mode: 'insensitive' } },
-            { name: { contains: search, mode: 'insensitive' } },
+            { code: { contains: search } },
+            { name: { contains: search } },
           ],
         } : {}),
       },

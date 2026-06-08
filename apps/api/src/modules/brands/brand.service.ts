@@ -20,7 +20,7 @@ export type BrandInput = z.infer<typeof brandSchema>
 export const brandService = {
   async list(search?: string) {
     return prisma.brand.findMany({
-      where: search ? { name: { contains: search, mode: 'insensitive' } } : undefined,
+      where: search ? { name: { contains: search } } : undefined,
       orderBy: { name: 'asc' },
       include: { _count: { select: { products: true } } },
     })

@@ -59,8 +59,8 @@ export const productService = {
 
     const where = {
       ...(search     ? { OR: [
-        { code: { contains: search, mode: 'insensitive' as const } },
-        { name: { contains: search, mode: 'insensitive' as const } },
+        { code: { contains: search } },
+        { name: { contains: search } },
       ]} : {}),
       ...(brandId    ? { brandId }    : {}),
       ...(categoryId ? { categoryId } : {}),

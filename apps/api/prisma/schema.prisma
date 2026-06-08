@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -17,7 +17,7 @@ model User {
   email        String   @unique
   password     String   // bcrypt hash
   role         Role     @default(USER)
-  refreshToken String?
+  refreshToken String? @db.Text
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -38,8 +38,8 @@ enum Role {
 model Brand {
   id          String    @id @default(uuid())
   name        String    @unique
-  logoUrl     String?
-  description String?
+  logoUrl     String? @db.Text
+  description String? @db.Text
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -53,7 +53,7 @@ model Brand {
 model Category {
   id          String    @id @default(uuid())
   name        String    // Ex: "Multifocais", "Visão Simples"
-  description String?
+  description String? @db.Text
   brandId     String?
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
@@ -64,6 +64,7 @@ model Category {
   brand       Brand?    @relation(fields: [brandId], references: [id])
 
   @@index([brandId])
+  @@unique([name, brandId])
   @@map("categories")
 }
 
@@ -107,8 +108,8 @@ model Product {
   height       String?            // Ex: "14 A 18"
   availability String?            // Disponibilidade
   isActive     Boolean            @default(true)
-  notes        String?            // Observações clínicas
-  imageUrl     String?
+  notes        String? @db.Text            // Observações clínicas
+  imageUrl     String? @db.Text
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
 
@@ -145,15 +146,15 @@ model ProductTreatment {
 model Catalog {
   id           String    @id @default(uuid())
   title        String    // Ex: "LENTE ZEISS MULTIFOCAIS"
-  subtitle     String?   // Ex: "Classic Plus Freeform Blueguard"
-  badge        String?   // Ex: "ALTURAS 14 A 18"
+  subtitle     String? @db.Text   // Ex: "Classic Plus Freeform Blueguard"
+  badge        String? @db.Text   // Ex: "ALTURAS 14 A 18"
   brandId      String
   categoryId   String
-  headerImage  String?   // URL da imagem de capa
-  description  String?
+  headerImage  String? @db.Text   // URL da imagem de capa
+  description  String? @db.Text
   isActive       Boolean   @default(true)
   sortOrder      Int       @default(0)
-  crmUrl         String?
+  crmUrl         String? @db.Text
   visibleColumns Json?
   sections       Json?
   createdAt      DateTime  @default(now())
@@ -174,11 +175,11 @@ model Export {
   userId      String
   type        ExportType
   status      ExportStatus @default(QUEUED)
-  fileName    String?
-  fileUrl     String?      // Caminho do arquivo gerado
+  fileName    String? @db.Text
+  fileUrl     String? @db.Text      // Caminho do arquivo gerado
   fileSize    Int?         // Em bytes
   filters     Json?        // Filtros aplicados (inclui brandOrder: string[])
-  error       String?
+  error       String? @db.Text
   createdAt   DateTime     @default(now())
   completedAt DateTime?
 

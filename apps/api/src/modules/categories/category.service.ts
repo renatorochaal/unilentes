@@ -15,7 +15,7 @@ export const categoryService = {
   async list(search?: string, brandId?: string) {
     return prisma.category.findMany({
       where: {
-        ...(search ? { name: { contains: search, mode: 'insensitive' as const } } : {}),
+        ...(search ? { name: { contains: search } } : {}),
         ...(brandId ? { brandId } : {}),
       },
       orderBy: { name: 'asc' },

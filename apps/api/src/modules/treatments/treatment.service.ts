@@ -12,7 +12,7 @@ export type TreatmentInput = z.infer<typeof treatmentSchema>
 export const treatmentService = {
   async list(search?: string) {
     return prisma.treatment.findMany({
-      where: search ? { name: { contains: search, mode: 'insensitive' } } : undefined,
+      where: search ? { name: { contains: search } } : undefined,
       orderBy: { name: 'asc' },
     })
   },
