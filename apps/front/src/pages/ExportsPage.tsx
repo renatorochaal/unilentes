@@ -44,6 +44,10 @@ function BrandOrderPicker({ brands, order, onChange }: BrandOrderPickerProps) {
     onChange(ids)
   }
 
+  function toggle(id: string) {
+    if (order.includes(id)) onChange(order.filter(i => i !== id))
+    else onChange([...order, id])
+  }
 
   return (
     <div className="space-y-1">
