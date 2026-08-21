@@ -4,8 +4,8 @@ import fs from 'fs'
 
 type ProductWithRelations = Prisma.ProductGetPayload<{
   include: {
-    brand:    { select: { name: true } }
-    category: { select: { name: true } }
+    brand:    { select: { id: true; name: true } }
+    category: { select: { id: true; name: true } }
     treatments: {
       include: { treatment: { select: { name: true } } }
     }
@@ -21,11 +21,15 @@ export interface CatalogSection {
 
 export interface CatalogExportMeta {
   title: string
+  subtitle?: string | null
   badge?: string | null
   sections?: CatalogSection[] | null
   headerImage?: string | null
+  brandId?: string | null
   brandName?: string | null
   brandLogoUrl?: string | null
+  categoryId?: string | null
+  categoryName?: string | null
 }
 
 function formatPrice(val: Prisma.Decimal | null | undefined): string {
@@ -63,12 +67,17 @@ async function loadPuppeteer() {
   return mod.default ?? mod
 }
 
-function buildHtml(
+export function buildPdfHtml(
   products: ProductWithRelations[],
-  catalogMeta?: CatalogExportMeta,
+  catalogMeta?: CatalogExportMeta | CatalogExportMeta[],
   headerImageUrl?: string | null,
 ): string {
-  const effectiveImageUrl = headerImageUrl ?? catalogMeta?.headerImage ?? null
+  const catalogMetas = catalogMeta
+    ? (Array.isArray(catalogMeta) ? catalogMeta : [catalogMeta])
+    : []
+  const effectiveImageUrl = headerImageUrl
+    ?? (!Array.isArray(catalogMeta) ? catalogMeta?.headerImage : null)
+    ?? null
   const heroImage = resolveImageToBase64(effectiveImageUrl)
 
   const treatmentNames = Array.from(
@@ -77,29 +86,78 @@ function buildHtml(
   const hasTreatments = treatmentNames.length > 0
   const arCount = treatmentNames.length
 
-  interface RenderGroup { title: string; badge?: string | null; items: ProductWithRelations[] }
+  interface RenderTable {
+    title?: string | null
+    badge?: string | null
+    items: ProductWithRelations[]
+  }
+  interface RenderGroup { title: string; tables: RenderTable[] }
   const groups: RenderGroup[] = []
 
-  if (catalogMeta?.sections?.length) {
-    const pm = new Map(products.map((p) => [p.id, p]))
-    for (const s of catalogMeta.sections) {
-      const items = s.productIds.map((id) => pm.get(id)).filter((p): p is ProductWithRelations => !!p)
-      if (items.length) groups.push({ title: s.title || catalogMeta.title, badge: catalogMeta.badge, items })
+  const productGroups = new Map<string, {
+    brandId: string
+    categoryId: string
+    brandName: string
+    categoryName: string
+    items: ProductWithRelations[]
+  }>()
+
+  for (const product of products) {
+    const key = `${product.brand.id}||${product.category.id}`
+    if (!productGroups.has(key)) {
+      productGroups.set(key, {
+        brandId: product.brand.id,
+        categoryId: product.category.id,
+        brandName: product.brand.name,
+        categoryName: product.category.name,
+        items: [],
+      })
     }
-  } else if (catalogMeta?.title) {
-    groups.push({ title: catalogMeta.title, badge: catalogMeta.badge, items: products })
-  } else {
-    const map = new Map<string, { brand: string; cat: string; items: ProductWithRelations[] }>()
-    for (const p of products) {
-      const k = `${p.brand.name}||${p.category.name}`
-      if (!map.has(k)) map.set(k, { brand: p.brand.name, cat: p.category.name, items: [] })
-      map.get(k)!.items.push(p)
-    }
-    for (const g of map.values()) groups.push({ title: `${g.brand} — ${g.cat}`, items: g.items })
+    productGroups.get(key)!.items.push(product)
   }
 
-  function renderSection(g: RenderGroup): string {
-    const rows = g.items.map((p, i) => {
+  for (const productGroup of productGroups.values()) {
+    const meta = catalogMetas.find((candidate) =>
+      (candidate.brandId
+        ? candidate.brandId === productGroup.brandId
+        : candidate.brandName === productGroup.brandName) &&
+      (candidate.categoryId
+        ? candidate.categoryId === productGroup.categoryId
+        : candidate.categoryName === productGroup.categoryName)
+    )
+    const tables: RenderTable[] = []
+
+    if (meta?.sections?.length) {
+      const productsById = new Map(productGroup.items.map((product) => [product.id, product]))
+      const assignedProductIds = new Set<string>()
+
+      for (const section of meta.sections) {
+        const items = section.productIds
+          .map((id) => productsById.get(id))
+          .filter((product): product is ProductWithRelations => !!product)
+        if (!items.length) continue
+
+        items.forEach((product) => assignedProductIds.add(product.id))
+        tables.push({ title: section.title || meta.subtitle || meta.title, badge: meta.badge, items })
+      }
+
+      // Mantém no PDF produtos que ainda não foram associados a uma linha.
+      const unassignedItems = productGroup.items.filter((product) => !assignedProductIds.has(product.id))
+      if (unassignedItems.length) {
+        tables.push({ title: meta.subtitle || meta.title, badge: meta.badge, items: unassignedItems })
+      }
+    } else {
+      tables.push({ title: meta?.subtitle || meta?.title, badge: meta?.badge, items: productGroup.items })
+    }
+
+    groups.push({
+      title: `${productGroup.brandName} — ${productGroup.categoryName}`,
+      tables,
+    })
+  }
+
+  function renderTable(table: RenderTable): string {
+    const rows = table.items.map((p, i) => {
       const pm = Object.fromEntries(p.treatments.map((t) => [t.treatment.name, t.price]))
       const cls = i % 2 === 0 ? 'ze' : 'zo'
       return `<tr class="${cls}">
@@ -143,14 +201,21 @@ function buildHtml(
 
     return `
     <div class="section">
-      <div class="stitle">
-        <h2>${esc(g.title)}</h2>
-        ${g.badge ? `<span class="pill">${esc(g.badge.toUpperCase())}</span>` : ''}
-      </div>
+      ${table.title || table.badge ? `<div class="line-title">
+        ${table.title ? `<h2>${esc(table.title)}</h2>` : ''}
+        ${table.badge ? `<span class="pill">${esc(table.badge.toUpperCase())}</span>` : ''}
+      </div>` : ''}
       <table>
         <thead>${theadHtml}</thead>
         <tbody>${rows}</tbody>
       </table>
+    </div>`
+  }
+
+  function renderGroup(group: RenderGroup): string {
+    return `<div class="category-group">
+      <h1 class="category-title">${esc(group.title)}</h1>
+      ${group.tables.map((table) => renderTable(table)).join('')}
     </div>`
   }
 
@@ -178,15 +243,22 @@ body {
   border-radius:4px; margin-bottom:20px; overflow:hidden;
 }
 
-/* ── Section title ────────────────────── */
-.section { margin-bottom:28px; }
-.stitle {
-  display:flex; align-items:center; gap:24px;
-  margin-bottom:6px;
-}
-.stitle h2 {
+/* ── Category and line titles ─────────── */
+.category-group { margin-bottom:32px; }
+.category-title {
+  margin-bottom:12px;
   font-size:24px; font-weight:700; color:#3c3c3c;
   letter-spacing:-0.4px;
+}
+.section { margin-bottom:24px; }
+.line-title {
+  display:flex; align-items:center; justify-content:center; gap:24px;
+  min-height:28px; margin-bottom:6px;
+  position:relative; text-align:center;
+}
+.line-title h2 {
+  font-size:16px; font-weight:700; color:#3c3c3c;
+  letter-spacing:-0.2px;
 }
 .pill {
   padding:5px 22px;
@@ -196,6 +268,7 @@ body {
   color:#14a9e0; background:#fff;
   white-space:nowrap;
 }
+.line-title .pill { position:absolute; right:0; }
 
 /* ── Table ─────────────────────────────── */
 table {
@@ -283,20 +356,21 @@ td.cp { text-align:center; }
 thead { display:table-header-group; }
 tr { page-break-inside:avoid; }
 .section { page-break-inside:auto; }
+.category-title, .line-title { break-after:avoid; page-break-after:avoid; }
 </style>
 </head>
 <body>
 ${heroHtml}
-${groups.map(g => renderSection(g)).join('')}
+${groups.map((group) => renderGroup(group)).join('')}
 </body></html>`
 }
 
 export async function generatePdf(
   products: ProductWithRelations[],
-  catalogMeta?: CatalogExportMeta,
+  catalogMeta?: CatalogExportMeta | CatalogExportMeta[],
   headerImageUrl?: string | null,
 ): Promise<Buffer> {
-  const html = buildHtml(products, catalogMeta, headerImageUrl)
+  const html = buildPdfHtml(products, catalogMeta, headerImageUrl)
   const chromeRuntimeDir = process.env.CHROME_RUNTIME_DIR ?? path.join('/tmp', `unilentes-chrome-${process.env.USER ?? 'app'}`)
   const chromeHomeDir = path.join(chromeRuntimeDir, 'home')
   const chromeUserDataDir = path.join(chromeRuntimeDir, 'profile')

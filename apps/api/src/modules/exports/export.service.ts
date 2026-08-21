@@ -68,29 +68,34 @@ export const exportService = {
 
     try {
       // Resolver filtros de catálogo antes da query de produtos
-      let catalogMeta: CatalogExportMeta | undefined
+      let catalogMetas: CatalogExportMeta[] = []
       const productWhere: Prisma.ProductWhereInput = { isActive: true }
 
       if (filters.catalogId) {
         const catalog = await prisma.catalog.findUnique({
           where: { id: filters.catalogId },
           select: {
-            title: true, badge: true, sections: true,
+            title: true, subtitle: true, badge: true, sections: true,
             brandId: true, categoryId: true,
             headerImage: true,
             brand: { select: { name: true, logoUrl: true } },
+            category: { select: { name: true } },
           },
         })
         if (catalog) {
           const sections = catalog.sections as CatalogSection[] | null
-          catalogMeta = {
+          catalogMetas = [{
             title: catalog.title,
+            subtitle: catalog.subtitle,
             badge: catalog.badge,
             sections,
             headerImage: catalog.headerImage,
+            brandId: catalog.brandId,
             brandName: catalog.brand.name,
             brandLogoUrl: catalog.brand.logoUrl,
-          }
+            categoryId: catalog.categoryId,
+            categoryName: catalog.category.name,
+          }]
           if (sections?.length) {
             // Filtrar apenas os produtos que pertencem às seções
             const allIds = sections.flatMap((s) => s.productIds)
@@ -104,6 +109,36 @@ export const exportService = {
       } else {
         if (filters.brandId)    productWhere.brandId    = filters.brandId
         if (filters.categoryId) productWhere.categoryId = filters.categoryId
+
+        if (record.type === ExportType.PDF) {
+          const catalogs = await prisma.catalog.findMany({
+            where: {
+              isActive: true,
+              ...(filters.brandId ? { brandId: filters.brandId } : {}),
+              ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
+            },
+            orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+            select: {
+              title: true, subtitle: true, badge: true, sections: true,
+              brandId: true, categoryId: true,
+              headerImage: true,
+              brand: { select: { name: true, logoUrl: true } },
+              category: { select: { name: true } },
+            },
+          })
+          catalogMetas = catalogs.map((catalog) => ({
+            title: catalog.title,
+            subtitle: catalog.subtitle,
+            badge: catalog.badge,
+            sections: catalog.sections as CatalogSection[] | null,
+            headerImage: catalog.headerImage,
+            brandId: catalog.brandId,
+            brandName: catalog.brand.name,
+            brandLogoUrl: catalog.brand.logoUrl,
+            categoryId: catalog.categoryId,
+            categoryName: catalog.category.name,
+          }))
+        }
       }
 
       // Buscar produtos com base nos filtros
@@ -112,7 +147,7 @@ export const exportService = {
         orderBy: { code: 'asc' },
         include: {
           brand:    { select: { id: true, name: true } },
-          category: { select: { name: true } },
+          category: { select: { id: true, name: true } },
           treatments: {
             include: { treatment: { select: { name: true } } },
             orderBy: { treatment: { name: 'asc' } },
@@ -147,7 +182,8 @@ export const exportService = {
       } else {
         fileName = `catalogo_${timestamp}.pdf`
         filePath = path.join(exportsDir, fileName)
-        const pdfBuffer = await generatePdf(products, catalogMeta, filters.headerImageUrl)
+        const pdfCatalogMeta = filters.catalogId ? catalogMetas[0] : catalogMetas
+        const pdfBuffer = await generatePdf(products, pdfCatalogMeta, filters.headerImageUrl)
         fs.writeFileSync(filePath, pdfBuffer)
         fileSize = pdfBuffer.length
       }
