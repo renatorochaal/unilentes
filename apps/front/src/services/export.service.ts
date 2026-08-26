@@ -1,4 +1,4 @@
-import { api } from './api'
+import { api, API_BASE_URL } from './api'
 import type { Export, ApiResponse } from '../types'
 
 export const exportService = {
@@ -18,9 +18,8 @@ export const exportService = {
    */
   async download(id: string, fileName: string, type: 'PDF' | 'CSV') {
     const token = localStorage.getItem('accessToken')
-    const baseUrl = (import.meta as unknown as { env: Record<string, string> }).env?.VITE_API_URL ?? 'http://localhost:3030'
 
-    const response = await fetch(`${baseUrl}/api/exports/${id}/download`, {
+    const response = await fetch(`${API_BASE_URL}/api/exports/${id}/download`, {
       headers: { Authorization: `Bearer ${token}` },
     })
 

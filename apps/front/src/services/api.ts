@@ -1,9 +1,17 @@
 import axios from 'axios'
 
-const BASE_URL = (import.meta as unknown as { env: Record<string, string> }).env?.VITE_API_URL ?? 'http://localhost:3030'
+const runtimeEnv = (import.meta as unknown as {
+  env?: { PROD?: boolean; VITE_API_URL?: string }
+}).env
+
+// Em produção, o Nginx encaminha /api para o backend no mesmo domínio.
+// Isso evita que CORS e o certificado do host interno da API afetem o frontend.
+export const API_BASE_URL = runtimeEnv?.PROD
+  ? ''
+  : runtimeEnv?.VITE_API_URL?.trim() || ''
 
 export const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: false,
 })
@@ -56,7 +64,7 @@ api.interceptors.response.use(
       }
 
       try {
-        const { data } = await axios.post(`${BASE_URL}/api/auth/refresh`, { refreshToken })
+        const { data } = await axios.post(`${API_BASE_URL}/api/auth/refresh`, { refreshToken })
         localStorage.setItem('accessToken', data.data.accessToken)
         localStorage.setItem('refreshToken', data.data.refreshToken)
         processQueue(null, data.data.accessToken)

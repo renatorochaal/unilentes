@@ -23,8 +23,11 @@ pnpm install
 ### 2. Configurar variáveis de ambiente
 Crie um arquivo `.env` na raiz da pasta `front-unilentes` (você pode copiar do `.env.example` se existir):
 ```env
-VITE_API_URL=http://localhost:3000/api
+VITE_API_URL=http://localhost:3030
 ```
+
+Essa variável é usada apenas em desenvolvimento. Em produção, o frontend acessa
+a API pelo mesmo domínio, usando o proxy reverso das rotas `/api`.
 
 ### 3. Rodar o servidor de desenvolvimento
 ```bash

@@ -1,9 +1,10 @@
 import axios from 'axios'
 import type { Catalog, CatalogWithProducts, ApiResponse } from '../types'
+import { API_BASE_URL } from './api'
 
 // Instância sem interceptadores de auth — para rotas públicas
 const publicApi = axios.create({
-  baseURL: (import.meta as unknown as { env: Record<string, string> }).env?.VITE_API_URL ?? 'http://localhost:3030',
+  baseURL: API_BASE_URL,
 })
 
 export const publicService = {
