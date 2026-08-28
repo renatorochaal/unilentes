@@ -28,9 +28,11 @@ interface BrandOrderPickerProps {
   brands: Brand[]
   order: string[]
   onChange: (order: string[]) => void
+  images: Record<string, string>
+  onImagesChange: (images: Record<string, string>) => void
 }
 
-function BrandOrderPicker({ brands, order, onChange }: BrandOrderPickerProps) {
+function BrandOrderPicker({ brands, order, onChange, images, onImagesChange }: BrandOrderPickerProps) {
   const orderedBrands = [
     ...order.map(id => brands.find(b => b.id === id)).filter(Boolean) as Brand[],
     ...brands.filter(b => !order.includes(b.id)),
@@ -44,12 +46,26 @@ function BrandOrderPicker({ brands, order, onChange }: BrandOrderPickerProps) {
     onChange(ids)
   }
 
+  function setBrandImage(brandId: string, url: string | null) {
+    const next = { ...images }
+    if (url) next[brandId] = url
+    else delete next[brandId]
+    onImagesChange(next)
+  }
+
   return (
     <div className="space-y-1">
       {orderedBrands.map((brand, idx) => (
         <div key={brand.id} className="flex items-center gap-2 p-2 rounded-lg border border-border bg-gray-50">
           <span className="text-xs font-bold text-text-placeholder w-4 text-center">{idx + 1}</span>
           <span className="flex-1 text-sm font-medium text-text-primary truncate">{brand.name}</span>
+          <ImageUpload
+            value={images[brand.id] ?? null}
+            onChange={url => setBrandImage(brand.id, url)}
+            size={28}
+            shape="square"
+            compact
+          />
           <button
             type="button"
             onClick={() => move(idx, -1)}
@@ -90,6 +106,7 @@ export function ExportsPage() {
 
   const [exportType, setExportType]   = useState<'PDF' | 'CSV'>('PDF')
   const [brandOrder, setBrandOrder]   = useState<string[]>([])
+  const [brandImages, setBrandImages] = useState<Record<string, string>>({})
   const [showBrandOrder, setShowBrandOrder] = useState(false)
   const [headerImageUrl, setHeaderImageUrl] = useState<string>('')
 
@@ -128,10 +145,12 @@ export function ExportsPage() {
       const payload: Record<string, unknown> = { type: exportType }
       if (exportType === 'PDF' && brandOrder.length > 0)  payload.brandOrder     = brandOrder
       if (exportType === 'PDF' && headerImageUrl)          payload.headerImageUrl = headerImageUrl
+      if (exportType === 'PDF' && Object.keys(brandImages).length > 0) payload.brandImages = brandImages
       await exportService.create(payload)
       toast.success(`Exportação ${exportType} enfileirada.`)
       setNewModal(false)
       setBrandOrder([])
+      setBrandImages({})
       setHeaderImageUrl('')
       load()
     } catch {
@@ -246,7 +265,7 @@ export function ExportsPage() {
       </div>
 
       {/* Modal nova exportação */}
-      <Modal isOpen={newModal} onClose={() => { setNewModal(false); setBrandOrder([]); setHeaderImageUrl('') }} title="Nova Exportação">
+      <Modal isOpen={newModal} onClose={() => { setNewModal(false); setBrandOrder([]); setBrandImages({}); setHeaderImageUrl('') }} title="Nova Exportação">
         <div className="space-y-4">
           <p className="text-sm text-text-secondary">Selecione o formato de exportação:</p>
 
@@ -330,12 +349,14 @@ export function ExportsPage() {
               {showBrandOrder && (
                 <div className="px-4 pb-4 pt-2 border-t border-border">
                   <p className="text-xs text-text-placeholder mb-3">
-                    Arraste ou use as setas para definir a ordem de aparição das marcas no PDF exportado.
+                    Use as setas para definir a ordem de aparição das marcas no PDF exportado. Clique no quadrado ao lado do nome para anexar um banner que aparece antes dos produtos daquela marca.
                   </p>
                   <BrandOrderPicker
                     brands={brands}
                     order={brandOrder}
                     onChange={setBrandOrder}
+                    images={brandImages}
+                    onImagesChange={setBrandImages}
                   />
                 </div>
               )}
@@ -343,7 +364,7 @@ export function ExportsPage() {
           )}
 
           <div className="flex gap-3 pt-2">
-            <button onClick={() => { setNewModal(false); setBrandOrder([]); setHeaderImageUrl('') }} className="btn-secondary flex-1">Cancelar</button>
+            <button onClick={() => { setNewModal(false); setBrandOrder([]); setBrandImages({}); setHeaderImageUrl('') }} className="btn-secondary flex-1">Cancelar</button>
             <button onClick={handleCreate} disabled={creating} className="btn-primary flex-1">
               {creating ? 'Gerando...' : 'Gerar Export'}
             </button>

@@ -15,6 +15,7 @@ export const exportRequestSchema = z.object({
   catalogId:      z.string().uuid().optional(),
   brandOrder:     z.array(z.string().uuid()).optional(),
   headerImageUrl: z.string().optional().nullable(),
+  brandImages:    z.record(z.string().uuid(), z.string()).optional(),
 })
 
 export type ExportFilters = z.infer<typeof exportRequestSchema>
@@ -183,7 +184,7 @@ export const exportService = {
         fileName = `catalogo_${timestamp}.pdf`
         filePath = path.join(exportsDir, fileName)
         const pdfCatalogMeta = filters.catalogId ? catalogMetas[0] : catalogMetas
-        const pdfBuffer = await generatePdf(products, pdfCatalogMeta, filters.headerImageUrl)
+        const pdfBuffer = await generatePdf(products, pdfCatalogMeta, filters.headerImageUrl, filters.brandImages)
         fs.writeFileSync(filePath, pdfBuffer)
         fileSize = pdfBuffer.length
       }

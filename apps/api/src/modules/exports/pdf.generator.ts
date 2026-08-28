@@ -71,9 +71,11 @@ export function buildPdfHtml(
   products: ProductWithRelations[],
   catalogMeta?: CatalogExportMeta | CatalogExportMeta[],
   headerImageUrl?: string | null,
+  brandImages?: Record<string, string> | null,
 ): string {
+  const isMultiCatalog = Array.isArray(catalogMeta)
   const catalogMetas = catalogMeta
-    ? (Array.isArray(catalogMeta) ? catalogMeta : [catalogMeta])
+    ? (isMultiCatalog ? catalogMeta : [catalogMeta])
     : []
   const effectiveImageUrl = headerImageUrl
     ?? (!Array.isArray(catalogMeta) ? catalogMeta?.headerImage : null)
@@ -86,12 +88,37 @@ export function buildPdfHtml(
   const hasTreatments = treatmentNames.length > 0
   const arCount = treatmentNames.length
 
+  // Larguras de coluna calculadas para caber na área útil do A4 retrato
+  // (595pt ≈ 734px de largura útil, descontando padding do body).
+  const COL_CODE = 58, COL_ESF = 90, COL_CIL = 45, COL_DIAM = 42, COL_ADD = 70, COL_NOAR = 65
+  const PORTRAIT_CONTENT_W = 734
+  const MIN_MATERIAL_W = 110
+  const fixedColsSum = COL_CODE + COL_ESF + COL_CIL + COL_DIAM + COL_ADD + COL_NOAR
+  const arBudget = Math.max(0, PORTRAIT_CONTENT_W - fixedColsSum - MIN_MATERIAL_W)
+  const arColWidth = hasTreatments ? Math.max(46, Math.floor(arBudget / arCount)) : 0
+
+  function buildColgroup(): string {
+    const arCols = hasTreatments
+      ? Array.from({ length: arCount }, () => `<col style="width:${arColWidth}px">`).join('')
+      : ''
+    return `<colgroup>
+      <col style="width:${COL_CODE}px">
+      <col>
+      <col style="width:${COL_ESF}px">
+      <col style="width:${COL_CIL}px">
+      <col style="width:${COL_DIAM}px">
+      <col style="width:${COL_ADD}px">
+      <col style="width:${COL_NOAR}px">
+      ${arCols}
+    </colgroup>`
+  }
+
   interface RenderTable {
     title?: string | null
     badge?: string | null
     items: ProductWithRelations[]
   }
-  interface RenderGroup { title: string; tables: RenderTable[] }
+  interface RenderGroup { title: string; tables: RenderTable[]; bannerImage?: string | null }
   const groups: RenderGroup[] = []
 
   const productGroups = new Map<string, {
@@ -116,6 +143,7 @@ export function buildPdfHtml(
     productGroups.get(key)!.items.push(product)
   }
 
+  const brandBannerShown = new Set<string>()
   for (const productGroup of productGroups.values()) {
     const meta = catalogMetas.find((candidate) =>
       (candidate.brandId
@@ -150,9 +178,15 @@ export function buildPdfHtml(
       tables.push({ title: meta?.subtitle || meta?.title, badge: meta?.badge, items: productGroup.items })
     }
 
+    const isFirstForBrand = !brandBannerShown.has(productGroup.brandId)
+    if (isFirstForBrand) brandBannerShown.add(productGroup.brandId)
+    const brandOverrideImage = isFirstForBrand ? brandImages?.[productGroup.brandId] : null
+    const catalogBannerImage = isMultiCatalog ? meta?.headerImage : null
+
     groups.push({
       title: `${productGroup.brandName} — ${productGroup.categoryName}`,
       tables,
+      bannerImage: resolveImageToBase64(brandOverrideImage ?? catalogBannerImage),
     })
   }
 
@@ -177,26 +211,26 @@ export function buildPdfHtml(
     // Row 2: nomes individuais dos tratamentos
     const theadHtml = hasTreatments
       ? `<tr class="hdr1">
-          <th rowspan="2" class="hl" style="width:70px">Cod. WEB</th>
-          <th rowspan="2" class="hl" style="width:auto">MATERIAL</th>
-          <th rowspan="2" class="hl" style="width:180px">ESFÉRICO</th>
-          <th rowspan="2" style="width:55px">CIL</th>
-          <th rowspan="2" style="width:45px">Ø</th>
-          <th rowspan="2" class="hl" style="width:90px">ADIÇÃO</th>
-          <th rowspan="2" style="width:60px">SEM AR</th>
+          <th rowspan="2" class="hl wrap">Cod. WEB</th>
+          <th rowspan="2" class="hl wrap">MATERIAL</th>
+          <th rowspan="2" class="hl wrap">ESFÉRICO</th>
+          <th rowspan="2">CIL</th>
+          <th rowspan="2">Ø</th>
+          <th rowspan="2" class="hl">ADIÇÃO</th>
+          <th rowspan="2">SEM AR</th>
           <th colspan="${arCount}" class="ar-top">COM ANTIRREFLEXO (AR)</th>
         </tr>
         <tr class="hdr2">
           ${treatmentNames.map(tn => `<th class="ar-sub">${esc(tn.toUpperCase())}</th>`).join('')}
         </tr>`
       : `<tr class="hdr1">
-          <th class="hl" style="width:70px">Cod. WEB</th>
-          <th class="hl" style="width:auto">MATERIAL</th>
-          <th class="hl" style="width:180px">ESFÉRICO</th>
-          <th style="width:55px">CIL</th>
-          <th style="width:45px">Ø</th>
-          <th class="hl" style="width:90px">ADIÇÃO</th>
-          <th style="width:60px">SEM AR</th>
+          <th class="hl wrap">Cod. WEB</th>
+          <th class="hl wrap">MATERIAL</th>
+          <th class="hl wrap">ESFÉRICO</th>
+          <th>CIL</th>
+          <th>Ø</th>
+          <th class="hl">ADIÇÃO</th>
+          <th>SEM AR</th>
         </tr>`
 
     return `
@@ -206,6 +240,7 @@ export function buildPdfHtml(
         ${table.badge ? `<span class="pill">${esc(table.badge.toUpperCase())}</span>` : ''}
       </div>` : ''}
       <table>
+        ${buildColgroup()}
         <thead>${theadHtml}</thead>
         <tbody>${rows}</tbody>
       </table>
@@ -213,7 +248,11 @@ export function buildPdfHtml(
   }
 
   function renderGroup(group: RenderGroup): string {
+    const bannerHtml = group.bannerImage
+      ? `<div class="group-banner" style="background-image:url('${group.bannerImage}');"></div>`
+      : ''
     return `<div class="category-group">
+      ${bannerHtml}
       <h1 class="category-title">${esc(group.title)}</h1>
       ${group.tables.map((table) => renderTable(table)).join('')}
     </div>`
@@ -226,7 +265,7 @@ export function buildPdfHtml(
   return `<!DOCTYPE html>
 <html lang="pt-BR"><head><meta charset="utf-8">
 <style>
-@page { size: A4 landscape; margin: 0; }
+@page { size: A4 portrait; margin: 0; }
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
   font-family: Arial, Helvetica, sans-serif;
@@ -241,6 +280,12 @@ body {
   width:100%; height:150px;
   background-size:cover; background-position:center;
   border-radius:4px; margin-bottom:20px; overflow:hidden;
+}
+
+.group-banner {
+  width:100%; height:110px;
+  background-size:cover; background-position:center;
+  border-radius:4px; margin-bottom:14px; overflow:hidden;
 }
 
 /* ── Category and line titles ─────────── */
@@ -273,6 +318,7 @@ body {
 /* ── Table ─────────────────────────────── */
 table {
   width:100%;
+  table-layout:fixed;
   border-collapse:separate;
   border-spacing:0;
   font-size:10px;
@@ -284,7 +330,7 @@ table {
   font-weight:700;
   color:#3f3f3f;
   text-transform:uppercase;
-  padding:0 10px;
+  padding:0 6px;
   text-align:center;
   vertical-align:bottom;
   padding-bottom:14px;
@@ -295,6 +341,7 @@ table {
   background:#fff;
 }
 .hdr1 th.hl { text-align:left; }
+.hdr1 th.wrap { white-space:normal; word-break:normal; overflow-wrap:break-word; }
 
 /* AR group top header — azul arredondado */
 .hdr1 th.ar-top {
@@ -315,23 +362,27 @@ table {
 .hdr2 th.ar-sub {
   background:#3b3b3b;
   color:#fff;
-  font-size:10px;
+  font-size:9px;
   font-weight:700;
   text-align:center;
-  padding:0 6px;
+  padding:0 4px;
   height:38px;
   vertical-align:middle;
-  white-space:nowrap;
+  white-space:normal;
+  word-break:normal;
+  overflow-wrap:break-word;
   border-bottom:none;
 }
 
 /* ── Body rows ─────────────────────────── */
 tbody td {
-  padding:0 10px;
+  padding:0 6px;
   height:27px;
   vertical-align:middle;
   font-size:10px;
-  white-space:nowrap;
+  white-space:normal;
+  word-break:normal;
+  overflow-wrap:break-word;
 }
 
 /* Zebra — atravessa TODAS as 11 colunas */
@@ -344,8 +395,8 @@ tbody td {
 
 /* Column specifics */
 td.cc { font-weight:800; color:#3c3c3c; text-align:left; }
-td.cm { text-align:left; overflow:hidden; text-overflow:ellipsis; max-width:300px; }
-td.cs { text-align:left; }
+td.cm { text-align:left; white-space:normal; word-break:normal; overflow-wrap:break-word; }
+td.cs { text-align:left; white-space:normal; word-break:normal; overflow-wrap:break-word; }
 td.cy { text-align:center; }
 td.cd { text-align:center; }
 td.ca { text-align:left; }
@@ -369,8 +420,9 @@ export async function generatePdf(
   products: ProductWithRelations[],
   catalogMeta?: CatalogExportMeta | CatalogExportMeta[],
   headerImageUrl?: string | null,
+  brandImages?: Record<string, string> | null,
 ): Promise<Buffer> {
-  const html = buildPdfHtml(products, catalogMeta, headerImageUrl)
+  const html = buildPdfHtml(products, catalogMeta, headerImageUrl, brandImages)
   const chromeRuntimeDir = process.env.CHROME_RUNTIME_DIR ?? path.join('/tmp', `unilentes-chrome-${process.env.USER ?? 'app'}`)
   const chromeHomeDir = path.join(chromeRuntimeDir, 'home')
   const chromeUserDataDir = path.join(chromeRuntimeDir, 'profile')
@@ -421,7 +473,7 @@ export async function generatePdf(
     await page.setContent(html, { waitUntil: 'load' })
     const pdfBuffer = await page.pdf({
       format: 'A4',
-      landscape: true,
+      landscape: false,
       printBackground: true,
       margin: { top: '0', right: '0', bottom: '0', left: '0' },
     })
