@@ -2,10 +2,12 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { exportService } from '../services/export.service'
 import { brandService } from '../services/brand.service'
+import { categoryService } from '../services/category.service'
+import { catalogService } from '../services/catalog.service'
 import { PageLoader } from '../components/ui/LoadingSpinner'
 import { Modal } from '../components/ui/Modal'
 import { ImageUpload } from '../components/ui/ImageUpload'
-import type { Export, Brand } from '../types'
+import type { Export, Brand, Category, Catalog } from '../types'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -110,6 +112,14 @@ export function ExportsPage() {
   const [showBrandOrder, setShowBrandOrder] = useState(false)
   const [headerImageUrl, setHeaderImageUrl] = useState<string>('')
 
+  // Escopo do export: catálogo específico OU marca/categoria (opcionais) — sem
+  // nenhum dos três, o backend exporta todos os catálogos/produtos ativos.
+  const [catalogs, setCatalogs]             = useState<Catalog[]>([])
+  const [scopeCatalogId, setScopeCatalogId] = useState('')
+  const [scopeBrandId, setScopeBrandId]     = useState('')
+  const [scopeCategoryId, setScopeCategoryId] = useState('')
+  const [scopeCategories, setScopeCategories] = useState<Category[]>([])
+
   const exportsRef = useRef<Export[]>([])
 
   const load = useCallback(async () => {
@@ -126,7 +136,30 @@ export function ExportsPage() {
   useEffect(() => {
     load()
     brandService.list({ limit: 200 }).then(r => setBrands(r.data))
+    catalogService.list().then(setCatalogs)
   }, [load])
+
+  // Categorias são por marca — recarrega ao trocar a marca do escopo.
+  useEffect(() => {
+    if (!scopeBrandId) {
+      setScopeCategories([])
+      setScopeCategoryId('')
+      return
+    }
+    categoryService.list({ brandId: scopeBrandId, limit: 200 }).then(r => {
+      setScopeCategories(r.data)
+      setScopeCategoryId(prev => (prev && r.data.some(c => c.id === prev)) ? prev : '')
+    })
+  }, [scopeBrandId])
+
+  function resetNewExportForm() {
+    setBrandOrder([])
+    setBrandImages({})
+    setHeaderImageUrl('')
+    setScopeCatalogId('')
+    setScopeBrandId('')
+    setScopeCategoryId('')
+  }
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -143,15 +176,21 @@ export function ExportsPage() {
     try {
       // Payload FLAT — backend lê direto do req.body
       const payload: Record<string, unknown> = { type: exportType }
+      // Catálogo específico tem prioridade sobre marca/categoria no backend
+      // (export.service.ts ignora brandId/categoryId quando catalogId é enviado).
+      if (scopeCatalogId) {
+        payload.catalogId = scopeCatalogId
+      } else {
+        if (scopeBrandId)    payload.brandId    = scopeBrandId
+        if (scopeCategoryId) payload.categoryId = scopeCategoryId
+      }
       if (exportType === 'PDF' && brandOrder.length > 0)  payload.brandOrder     = brandOrder
       if (exportType === 'PDF' && headerImageUrl)          payload.headerImageUrl = headerImageUrl
       if (exportType === 'PDF' && Object.keys(brandImages).length > 0) payload.brandImages = brandImages
       await exportService.create(payload)
       toast.success(`Exportação ${exportType} enfileirada.`)
       setNewModal(false)
-      setBrandOrder([])
-      setBrandImages({})
-      setHeaderImageUrl('')
+      resetNewExportForm()
       load()
     } catch {
       toast.error('Erro ao criar exportação.')
@@ -265,7 +304,7 @@ export function ExportsPage() {
       </div>
 
       {/* Modal nova exportação */}
-      <Modal isOpen={newModal} onClose={() => { setNewModal(false); setBrandOrder([]); setBrandImages({}); setHeaderImageUrl('') }} title="Nova Exportação">
+      <Modal isOpen={newModal} onClose={() => { setNewModal(false); resetNewExportForm() }} title="Nova Exportação">
         <div className="space-y-4">
           <p className="text-sm text-text-secondary">Selecione o formato de exportação:</p>
 
@@ -292,6 +331,51 @@ export function ExportsPage() {
                 <span className={`text-sm font-semibold ${exportType === t ? 'text-primary' : 'text-text-secondary'}`}>{t}</span>
               </button>
             ))}
+          </div>
+
+          {/* Escopo: catálogo específico OU marca/categoria (ambos opcionais) */}
+          <div className="space-y-3 border border-border rounded-xl p-4">
+            <div>
+              <label className="label-base">Catálogo específico</label>
+              <select
+                className="input-base w-full"
+                value={scopeCatalogId}
+                onChange={e => setScopeCatalogId(e.target.value)}
+              >
+                <option value="">Todos os catálogos ativos</option>
+                {catalogs.map(c => (
+                  <option key={c.id} value={c.id}>{c.brand.name} — {c.title}</option>
+                ))}
+              </select>
+            </div>
+
+            {!scopeCatalogId && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label-base">Marca</label>
+                  <select
+                    className="input-base w-full"
+                    value={scopeBrandId}
+                    onChange={e => setScopeBrandId(e.target.value)}
+                  >
+                    <option value="">Todas as marcas</option>
+                    {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="label-base">Categoria</label>
+                  <select
+                    className="input-base w-full"
+                    value={scopeCategoryId}
+                    onChange={e => setScopeCategoryId(e.target.value)}
+                    disabled={!scopeBrandId}
+                  >
+                    <option value="">Todas as categorias</option>
+                    {scopeCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Imagem do cabeçalho — apenas PDF */}
@@ -364,7 +448,7 @@ export function ExportsPage() {
           )}
 
           <div className="flex gap-3 pt-2">
-            <button onClick={() => { setNewModal(false); setBrandOrder([]); setBrandImages({}); setHeaderImageUrl('') }} className="btn-secondary flex-1">Cancelar</button>
+            <button onClick={() => { setNewModal(false); resetNewExportForm() }} className="btn-secondary flex-1">Cancelar</button>
             <button onClick={handleCreate} disabled={creating} className="btn-primary flex-1">
               {creating ? 'Gerando...' : 'Gerar Export'}
             </button>

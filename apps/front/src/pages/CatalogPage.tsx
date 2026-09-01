@@ -250,21 +250,57 @@ function CatalogFormModal({ catalog, onClose, onSaved }: CatalogFormModalProps) 
     visibleColumns: catalog?.visibleColumns ?? DEFAULT_COLUMNS,
     sections:       catalog?.sections       ?? null,
   })
+  const [productsLoaded, setProductsLoaded] = useState(false)
 
   useEffect(() => {
     brandService.list({ limit: 200 }).then(r => setBrands(r.data))
-    categoryService.list({ limit: 200 }).then(r => setCategories(r.data))
   }, [])
+
+  // Categorias são por marca — recarrega ao trocar a marca e limpa a
+  // categoria selecionada se ela não pertencer mais à marca atual.
+  useEffect(() => {
+    if (!form.brandId) {
+      setCategories([])
+      return
+    }
+    categoryService.list({ brandId: form.brandId, limit: 200 }).then(r => {
+      setCategories(r.data)
+      setForm(f => (f.categoryId && !r.data.some(c => c.id === f.categoryId))
+        ? { ...f, categoryId: '' }
+        : f)
+    })
+  }, [form.brandId])
 
   // Reload products when brand+category changes
   useEffect(() => {
     if (form.brandId && form.categoryId) {
+      setProductsLoaded(false)
       productService.list({ brand: form.brandId, category: form.categoryId, limit: 500 })
-        .then(r => setProducts(r.data))
+        .then(r => { setProducts(r.data); setProductsLoaded(true) })
     } else {
       setProducts([])
+      setProductsLoaded(false)
     }
   }, [form.brandId, form.categoryId])
+
+  // Remove das seções produtos que não pertencem mais à marca/categoria
+  // atual (ex.: usuário trocou a categoria depois de montar as seções).
+  useEffect(() => {
+    if (!productsLoaded) return
+    setForm(f => {
+      if (!f.sections?.length) return f
+      const validIds = new Set(products.map(p => p.id))
+      let removed = 0
+      const nextSections = f.sections.map(sec => {
+        const filtered = sec.productIds.filter(pid => validIds.has(pid))
+        removed += sec.productIds.length - filtered.length
+        return filtered.length === sec.productIds.length ? sec : { ...sec, productIds: filtered }
+      })
+      if (removed === 0) return f
+      toast.error(`${removed} produto(s) removido(s) das seções por não pertencerem mais à marca/categoria selecionada.`)
+      return { ...f, sections: nextSections }
+    })
+  }, [products, productsLoaded])
 
   function set<K extends keyof CatalogPayload>(key: K, value: CatalogPayload[K]) {
     setForm(f => ({ ...f, [key]: value }))
@@ -748,7 +784,14 @@ export function CatalogPage() {
     try {
       const data = await catalogService.list({ all: true })
       setCatalogs(data)
-      if (data.length > 0 && !selected) await loadDetail(data[0].id)
+      if (selected) {
+        // Catálogo selecionado pode ter sido editado (ex.: categoria trocada) —
+        // recarrega o detalhe para refletir o estado atual na tela.
+        if (data.some(c => c.id === selected.id)) await loadDetail(selected.id)
+        else setSelected(null)
+      } else if (data.length > 0) {
+        await loadDetail(data[0].id)
+      }
     } finally {
       setLoading(false)
     }

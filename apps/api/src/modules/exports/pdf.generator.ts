@@ -89,13 +89,16 @@ export function buildPdfHtml(
   const arCount = treatmentNames.length
 
   // Larguras de coluna calculadas para caber na área útil do A4 retrato
-  // (595pt ≈ 734px de largura útil, descontando padding do body).
-  const COL_CODE = 58, COL_ESF = 90, COL_CIL = 45, COL_DIAM = 42, COL_ADD = 70, COL_NOAR = 65
+  // (595pt ≈ 734px de largura útil, descontando padding do body). Colunas
+  // numéricas foram enxugadas para sobrar mais espaço pra MATERIAL, que é
+  // a que mais varia de tamanho (nomes longos de lente).
+  const COL_CODE = 50, COL_ESF = 76, COL_CIL = 38, COL_DIAM = 36, COL_ADD = 60, COL_NOAR = 56
   const PORTRAIT_CONTENT_W = 734
   const MIN_MATERIAL_W = 110
   const fixedColsSum = COL_CODE + COL_ESF + COL_CIL + COL_DIAM + COL_ADD + COL_NOAR
   const arBudget = Math.max(0, PORTRAIT_CONTENT_W - fixedColsSum - MIN_MATERIAL_W)
   const arColWidth = hasTreatments ? Math.max(46, Math.floor(arBudget / arCount)) : 0
+  const materialColWidth = Math.max(MIN_MATERIAL_W, PORTRAIT_CONTENT_W - fixedColsSum - arColWidth * arCount)
 
   function buildColgroup(): string {
     const arCols = hasTreatments
@@ -103,7 +106,7 @@ export function buildPdfHtml(
       : ''
     return `<colgroup>
       <col style="width:${COL_CODE}px">
-      <col>
+      <col style="width:${materialColWidth}px">
       <col style="width:${COL_ESF}px">
       <col style="width:${COL_CIL}px">
       <col style="width:${COL_DIAM}px">
@@ -330,7 +333,7 @@ table {
   font-weight:700;
   color:#3f3f3f;
   text-transform:uppercase;
-  padding:0 6px;
+  padding:0 4px;
   text-align:center;
   vertical-align:bottom;
   padding-bottom:14px;
@@ -376,8 +379,8 @@ table {
 
 /* ── Body rows ─────────────────────────── */
 tbody td {
-  padding:0 6px;
-  height:27px;
+  padding:0 4px;
+  min-height:27px;
   vertical-align:middle;
   font-size:10px;
   white-space:normal;
