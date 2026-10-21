@@ -25,6 +25,13 @@ export interface Brand {
   _count?: { products: number }
 }
 
+export interface CategoryTreatment {
+  id: string
+  treatmentId: string
+  sortOrder: number
+  treatment: Pick<Treatment, 'id' | 'name'>
+}
+
 export interface Category {
   id: string
   name: string
@@ -33,7 +40,14 @@ export interface Category {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  /** Colunas de tratamento exibidas nas tabelas da categoria, em ordem. Vazio = automático. */
+  treatments?: CategoryTreatment[]
   _count?: { products: number }
+}
+
+/** Payload de criação/edição: a ordem de treatmentIds é a ordem das colunas. */
+export type CategoryInput = Partial<Pick<Category, 'name' | 'description' | 'brandId' | 'isActive'>> & {
+  treatmentIds?: string[]
 }
 
 export interface Supplier {
@@ -121,7 +135,7 @@ export interface Catalog {
   createdAt: string
   updatedAt: string
   brand: Pick<Brand, 'id' | 'name' | 'logoUrl'>
-  category: Pick<Category, 'id' | 'name'>
+  category: Pick<Category, 'id' | 'name' | 'treatments'>
 }
 
 export interface CatalogWithProducts extends Catalog {

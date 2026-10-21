@@ -1,6 +1,7 @@
 import { prisma } from '../../config/prisma'
 import { AppError } from '../../shared/middleware/error.handler'
 import { z } from 'zod'
+import { categoryTreatmentsInclude } from '../categories/category-treatments'
 
 /** Aceita URLs absolutas (http/https) e paths relativos (/uploads/...) */
 const urlOrPath = z.string().refine(
@@ -91,7 +92,7 @@ export const catalogService = {
       where: { id },
       include: {
         brand:    { select: { id: true, name: true, logoUrl: true } },
-        category: { select: { id: true, name: true } },
+        category: { select: { id: true, name: true, treatments: categoryTreatmentsInclude } },
       },
     })
     if (!catalog) throw new AppError('Catálogo não encontrado.', 404)

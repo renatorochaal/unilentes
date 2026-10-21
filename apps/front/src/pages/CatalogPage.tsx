@@ -6,6 +6,7 @@ import { productService } from '../services/product.service'
 import { Modal } from '../components/ui/Modal'
 import { PageLoader } from '../components/ui/LoadingSpinner'
 import { ImageUpload } from '../components/ui/ImageUpload'
+import { resolveTreatmentColumns } from '../utils/treatmentColumns'
 import toast from 'react-hot-toast'
 const uuidv4 = () => crypto.randomUUID()
 
@@ -525,8 +526,8 @@ function CatalogProductTable({
   const cols = resolveColumns(catalog.visibleColumns)
 
   const treatmentNames = useMemo(() =>
-    Array.from(new Set(catalog.products.flatMap(p => p.treatments.map(t => t.treatment.name)))).sort()
-  , [catalog.products])
+    resolveTreatmentColumns(catalog.category.treatments, catalog.products)
+  , [catalog.category.treatments, catalog.products])
 
   const filteredProducts = useMemo(() => {
     if (!search) return catalog.products

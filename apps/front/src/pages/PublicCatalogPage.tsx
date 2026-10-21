@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, CSSProperties } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { publicService } from '../services/public.service'
 import type { Catalog, CatalogWithProducts, Product, ColumnVisibility } from '../types'
+import { resolveTreatmentColumns } from '../utils/treatmentColumns'
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -237,11 +238,9 @@ export function PublicCatalogPage() {
 
   const brandGroups = useMemo(() => groupByBrand(catalogs), [catalogs])
 
-  // Coletar todos os tratamentos do catálogo atual (para manter colunas estáveis entre seções)
+  // Colunas de tratamento do catálogo (configuração da categoria), estáveis entre seções
   const allTreatmentNames = useMemo(() =>
-    selected
-      ? Array.from(new Set(selected.products.flatMap(p => p.treatments.map(t => t.treatment.name)))).sort()
-      : []
+    selected ? resolveTreatmentColumns(selected.category.treatments, selected.products) : []
   , [selected])
 
   // Organizar produtos por seção

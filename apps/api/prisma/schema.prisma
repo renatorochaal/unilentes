@@ -60,6 +60,7 @@ model Category {
   updatedAt   DateTime  @updatedAt
   products    Product[]
   catalogs    Catalog[]
+  treatments  CategoryTreatment[]
 
   brand       Brand?    @relation(fields: [brandId], references: [id])
 
@@ -88,9 +89,28 @@ model Treatment {
   isActive  Boolean            @default(true)
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
-  prices    ProductTreatment[]
+  prices     ProductTreatment[]
+  categories CategoryTreatment[]
 
   @@map("treatments")
+}
+
+// Colunas de tratamento (AR) exibidas nas tabelas de uma categoria, na ordem
+// definida por sortOrder. Categoria sem registros aqui exibe apenas os
+// tratamentos que têm preço em algum produto dela.
+model CategoryTreatment {
+  id          String   @id @default(uuid())
+  categoryId  String
+  treatmentId String
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  category  Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  treatment Treatment @relation(fields: [treatmentId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, treatmentId])
+  @@index([treatmentId])
+  @@map("category_treatments")
 }
 
 model Product {

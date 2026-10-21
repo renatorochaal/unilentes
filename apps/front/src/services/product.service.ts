@@ -29,7 +29,27 @@ export interface ProductInput {
   treatments?: { treatmentId: string; price: number }[]
 }
 
+export interface ProductImportResult {
+  dryRun: boolean
+  total: number
+  created: number
+  updated: number
+  treatmentColumns: string[]
+  errors: { line: number; code?: string; message: string }[]
+}
+
 export const productService = {
+  /** dryRun=true só valida e devolve o resumo; nada é gravado. */
+  async importCsv(file: File, dryRun: boolean) {
+    const form = new FormData()
+    form.append('file', file)
+    const { data } = await api.post<ApiResponse<ProductImportResult>>('/api/products/import', form, {
+      params: { dryRun },
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return data.data
+  },
+
   async list(params?: ProductFilters) {
     const { data } = await api.get<PaginatedResponse<Product>>('/api/products', { params })
     return data

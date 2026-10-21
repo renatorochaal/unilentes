@@ -12,16 +12,19 @@ interface ImageUploadProps {
   shape?: 'square' | 'circle'
   /** Quando true, renderiza só o preview clicável (sem botão/hint ao lado) */
   compact?: boolean
+  /** Tamanho máximo aceito — default 3 MB (backend aceita até 10 MB) */
+  maxSizeMB?: number
 }
 
 export function ImageUpload({
   value,
   onChange,
   label,
-  hint = 'PNG, JPG ou SVG — máx. 3 MB',
+  hint,
   size = 80,
   shape = 'square',
   compact = false,
+  maxSizeMB = 3,
 }: ImageUploadProps) {
   const inputRef  = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(false)
@@ -31,8 +34,8 @@ export function ImageUpload({
       toast.error('Selecione um arquivo de imagem.')
       return
     }
-    if (file.size > 3 * 1024 * 1024) {
-      toast.error('Imagem muito grande. Máximo 3 MB.')
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      toast.error(`Imagem muito grande. Máximo ${maxSizeMB} MB.`)
       return
     }
 
@@ -167,7 +170,7 @@ export function ImageUpload({
             </button>
           )}
         </div>
-        <p className="text-[11px] text-text-placeholder mt-1.5">{hint}</p>
+        <p className="text-[11px] text-text-placeholder mt-1.5">{hint ?? `PNG, JPG ou SVG — máx. ${maxSizeMB} MB`}</p>
       </div>
 
       {input}

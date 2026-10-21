@@ -7,6 +7,7 @@ import { catalogService } from '../services/catalog.service'
 import { PageLoader } from '../components/ui/LoadingSpinner'
 import { Modal } from '../components/ui/Modal'
 import { ImageUpload } from '../components/ui/ImageUpload'
+import { ImagePagesEditor, validateImagePages, type ImagePageDraft } from '../components/exports/ImagePagesEditor'
 import type { Export, Brand, Category, Catalog } from '../types'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -111,6 +112,7 @@ export function ExportsPage() {
   const [brandImages, setBrandImages] = useState<Record<string, string>>({})
   const [showBrandOrder, setShowBrandOrder] = useState(false)
   const [headerImageUrl, setHeaderImageUrl] = useState<string>('')
+  const [imagePages, setImagePages] = useState<ImagePageDraft[]>([])
 
   // Escopo do export: catálogo específico OU marca/categoria (opcionais) — sem
   // nenhum dos três, o backend exporta todos os catálogos/produtos ativos.
@@ -156,6 +158,7 @@ export function ExportsPage() {
     setBrandOrder([])
     setBrandImages({})
     setHeaderImageUrl('')
+    setImagePages([])
     setScopeCatalogId('')
     setScopeBrandId('')
     setScopeCategoryId('')
@@ -172,6 +175,10 @@ export function ExportsPage() {
   }, [load])
 
   async function handleCreate() {
+    if (exportType === 'PDF') {
+      const imagePagesError = validateImagePages(imagePages)
+      if (imagePagesError) { toast.error(imagePagesError); return }
+    }
     setCreating(true)
     try {
       // Payload FLAT — backend lê direto do req.body
@@ -187,6 +194,13 @@ export function ExportsPage() {
       if (exportType === 'PDF' && brandOrder.length > 0)  payload.brandOrder     = brandOrder
       if (exportType === 'PDF' && headerImageUrl)          payload.headerImageUrl = headerImageUrl
       if (exportType === 'PDF' && Object.keys(brandImages).length > 0) payload.brandImages = brandImages
+      if (exportType === 'PDF' && imagePages.length > 0) {
+        payload.imagePages = imagePages.map(({ imageUrl, position, brandId }) => ({
+          imageUrl,
+          position,
+          ...(position === 'beforeBrand' || position === 'afterBrand' ? { brandId } : {}),
+        }))
+      }
       await exportService.create(payload)
       toast.success(`Exportação ${exportType} enfileirada.`)
       setNewModal(false)
@@ -404,6 +418,26 @@ export function ExportsPage() {
                   size={72}
                   shape="square"
                 />
+              </div>
+            </div>
+          )}
+
+          {/* Páginas de imagem — apenas PDF */}
+          {exportType === 'PDF' && (
+            <div className="border border-border rounded-xl overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-text-primary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                </svg>
+                Páginas de imagem
+              </div>
+              <div className="px-4 pb-4 pt-0 border-t border-border">
+                <p className="text-xs text-text-placeholder mb-3 mt-2">
+                  Cada imagem ocupa uma página A4 inteira (capa, apresentação de linha, tabela de disponibilidade).
+                  Use imagens em retrato 1414 × 2000 px ou proporcional — outras proporções ficam com borda branca. Máx. 10 MB.
+                </p>
+                <ImagePagesEditor pages={imagePages} onChange={setImagePages} brands={brands} />
               </div>
             </div>
           )}

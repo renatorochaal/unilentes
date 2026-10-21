@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { Category, ApiResponse } from '../types'
+import type { Category, CategoryInput, ApiResponse } from '../types'
 
 export const categoryService = {
   async list(params?: { search?: string; brandId?: string; page?: number; limit?: number }) {
@@ -25,12 +25,12 @@ export const categoryService = {
     return data.data
   },
 
-  async create(payload: Partial<Category>) {
+  async create(payload: CategoryInput) {
     const { data } = await api.post<ApiResponse<Category>>('/api/categories', payload)
     return data.data
   },
 
-  async update(id: string, payload: Partial<Category>) {
+  async update(id: string, payload: CategoryInput) {
     const { data } = await api.put<ApiResponse<Category>>(`/api/categories/${id}`, payload)
     return data.data
   },

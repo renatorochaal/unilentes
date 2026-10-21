@@ -3,10 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { brandService } from '../services/brand.service'
 import { categoryService } from '../services/category.service'
+import { treatmentService } from '../services/treatment.service'
+import { CategoryTreatmentsPicker } from '../components/ui/CategoryTreatmentsPicker'
 import { Modal } from '../components/ui/Modal'
 import { PageLoader } from '../components/ui/LoadingSpinner'
 import { ImageUpload } from '../components/ui/ImageUpload'
-import type { Brand, Category } from '../types'
+import type { Brand, Category, Treatment } from '../types'
 import { useForm } from 'react-hook-form'
 
 interface BrandForm { name: string; description?: string; logoUrl?: string; isActive: boolean }
@@ -29,6 +31,8 @@ export function BrandDetailPage() {
   const [editingCat, setEditingCat] = useState<Category | null>(null)
   const [delCat, setDelCat] = useState<Category | null>(null)
   const catForm = useForm<CategoryForm>()
+  const [treatments, setTreatments] = useState<Treatment[]>([])
+  const [catTreatmentIds, setCatTreatmentIds] = useState<string[]>([])
 
   const load = useCallback(async () => {
     if (!id) return
@@ -45,6 +49,7 @@ export function BrandDetailPage() {
   }, [id, navigate])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { treatmentService.list({ limit: 500 }).then((r) => setTreatments(r.data)).catch(() => {}) }, [])
 
   // ── Brand Edit ──────────────────────────────
   function openBrandEdit() {
@@ -73,12 +78,14 @@ export function BrandDetailPage() {
   // ── Category CRUD ───────────────────────────
   function openCreateCat() {
     catForm.reset({ name: '', description: '', isActive: true })
+    setCatTreatmentIds([])
     setEditingCat(null)
     setCatModal(true)
   }
 
   function openEditCat(c: Category) {
     catForm.reset({ name: c.name, description: c.description ?? '', isActive: c.isActive })
+    setCatTreatmentIds((c.treatments ?? []).map((ct) => ct.treatmentId))
     setEditingCat(c)
     setCatModal(true)
   }
@@ -88,10 +95,10 @@ export function BrandDetailPage() {
     setSaving(true)
     try {
       if (editingCat) {
-        await categoryService.update(editingCat.id, d)
+        await categoryService.update(editingCat.id, { ...d, treatmentIds: catTreatmentIds })
         toast.success('Categoria atualizada.')
       } else {
-        await categoryService.create({ ...d, brandId: brand.id })
+        await categoryService.create({ ...d, brandId: brand.id, treatmentIds: catTreatmentIds })
         toast.success('Categoria criada.')
       }
       setCatModal(false)
@@ -291,6 +298,7 @@ export function BrandDetailPage() {
             <input type="checkbox" className="accent-primary w-4 h-4" {...catForm.register('isActive')} />
             <span className="text-sm font-medium text-text-primary">Ativa</span>
           </label>
+          <CategoryTreatmentsPicker value={catTreatmentIds} onChange={setCatTreatmentIds} treatments={treatments} />
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={() => setCatModal(false)} className="btn-secondary flex-1">Cancelar</button>
             <button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? 'Salvando...' : editingCat ? 'Salvar' : 'Criar'}</button>

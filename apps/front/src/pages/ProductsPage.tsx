@@ -8,6 +8,7 @@ import { treatmentService } from '../services/treatment.service'
 import { Modal } from '../components/ui/Modal'
 import { Pagination } from '../components/ui/Pagination'
 import { PageLoader } from '../components/ui/LoadingSpinner'
+import { ProductImportModal } from '../components/products/ProductImportModal'
 import type { Product, Brand, Category, Treatment } from '../types'
 import { useForm, useFieldArray } from 'react-hook-form'
 
@@ -48,7 +49,7 @@ function ProductForm({
   onCancel: () => void
   loading: boolean
 }) {
-  const { register, handleSubmit, control, formState: { errors } } = useForm<ProductFormData>({
+  const { register, handleSubmit, control, watch, formState: { errors } } = useForm<ProductFormData>({
     defaultValues: {
       code:         initial?.code ?? '',
       name:         initial?.name ?? '',
@@ -68,6 +69,22 @@ function ProductForm({
     },
   })
   const { fields, append, remove } = useFieldArray({ control, name: 'treatments' })
+
+  // Categoria com colunas configuradas restringe os tratamentos oferecidos
+  const selectedCategory = categories.find((c) => c.id === watch('categoryId'))
+  const configuredIds = (selectedCategory?.treatments ?? [])
+    .slice().sort((a, b) => a.sortOrder - b.sortOrder).map((ct) => ct.treatmentId)
+  const treatmentRows = watch('treatments')
+  function treatmentOptions(currentId: string) {
+    if (!configuredIds.length) return allTreatments
+    const byId = new Map(allTreatments.map((t) => [t.id, t]))
+    const ids = configuredIds.includes(currentId) || !currentId ? configuredIds : [...configuredIds, currentId]
+    return ids.map((id) => byId.get(id)).filter((t): t is Treatment => !!t)
+  }
+  function fillFromCategory() {
+    const present = new Set(treatmentRows.map((t) => t.treatmentId))
+    configuredIds.filter((id) => !present.has(id)).forEach((treatmentId) => append({ treatmentId, price: 0 }))
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -153,20 +170,36 @@ function ProductForm({
       <div>
         <div className="flex items-center justify-between mb-2">
           <label className="label-base mb-0">Tratamentos / Preços AR</label>
-          <button
-            type="button"
-            onClick={() => append({ treatmentId: '', price: 0 })}
-            className="text-xs text-primary hover:text-primary-600 font-medium"
-          >
-            + Adicionar
-          </button>
+          <div className="flex gap-3">
+            {configuredIds.length > 0 && (
+              <button
+                type="button"
+                onClick={fillFromCategory}
+                className="text-xs text-primary hover:text-primary-600 font-medium"
+              >
+                Usar tratamentos da categoria
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => append({ treatmentId: '', price: 0 })}
+              className="text-xs text-primary hover:text-primary-600 font-medium"
+            >
+              + Adicionar
+            </button>
+          </div>
         </div>
+        {configuredIds.length > 0 && treatmentRows.some((t) => t.treatmentId && !configuredIds.includes(t.treatmentId)) && (
+          <p className="text-xs text-warning mb-2">
+            Há tratamento fora das colunas configuradas na categoria — o preço fica salvo, mas não aparece nas tabelas nem no PDF.
+          </p>
+        )}
         <div className="space-y-2">
           {fields.map((field, idx) => (
             <div key={field.id} className="flex gap-2 items-center">
               <select className="input-base flex-1" {...register(`treatments.${idx}.treatmentId`)}>
                 <option value="">Selecione</option>
-                {allTreatments.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                {treatmentOptions(treatmentRows[idx]?.treatmentId ?? '').map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
               <input
                 type="number"
@@ -209,6 +242,7 @@ export function ProductsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing]     = useState<Product | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
   const page = Number(searchParams.get('page') ?? 1)
 
   const load = useCallback(async () => {
@@ -234,7 +268,7 @@ export function ProductsPage() {
   useEffect(() => {
     brandService.list({ limit: 200 }).then((r) => setBrands(r.data))
     categoryService.list({ limit: 200 }).then((r) => setCategories(r.data))
-    treatmentService.list({ limit: 200 }).then((r) => setTreatments(r.data))
+    treatmentService.list({ limit: 500 }).then((r) => setTreatments(r.data))
   }, [])
 
   function applyFilters() {
@@ -293,14 +327,20 @@ export function ProductsPage() {
           <h1 className="page-title">Produtos</h1>
           <p className="text-sm text-text-secondary mt-0.5">{meta.total} produtos cadastrados</p>
         </div>
-        <button
-          onClick={() => { setEditing(null); setModalOpen(true) }}
-          className="btn-primary"
-          id="btn-add-product"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
-          Novo Produto
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setImportOpen(true)} className="btn-secondary" id="btn-import-products">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Importar CSV
+          </button>
+          <button
+            onClick={() => { setEditing(null); setModalOpen(true) }}
+            className="btn-primary"
+            id="btn-add-product"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+            Novo Produto
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -409,6 +449,13 @@ export function ProductsPage() {
           </div>
         )}
       </div>
+
+      <ProductImportModal
+        isOpen={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={load}
+        treatments={treatments}
+      />
 
       {/* Modal criar/editar */}
       <Modal

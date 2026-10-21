@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { Request, Response, NextFunction } from 'express'
 import { prisma } from '../../config/prisma'
+import { categoryTreatmentsInclude } from '../categories/category-treatments'
 
 export const publicRouter = Router()
 
@@ -29,7 +30,7 @@ publicRouter.get('/catalogs/:id', async (req: Request<{ id: string }>, res: Resp
       where: { id, isActive: true },
       include: {
         brand:    { select: { id: true, name: true, logoUrl: true } },
-        category: { select: { id: true, name: true } },
+        category: { select: { id: true, name: true, treatments: categoryTreatmentsInclude } },
       },
     })
 

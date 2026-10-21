@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { categoryService } from '../services/category.service'
+import { treatmentService } from '../services/treatment.service'
+import { CategoryTreatmentsPicker } from '../components/ui/CategoryTreatmentsPicker'
 import { Modal } from '../components/ui/Modal'
 import { PageLoader } from '../components/ui/LoadingSpinner'
 import { Pagination } from '../components/ui/Pagination'
-import type { Category } from '../types'
+import type { Category, Treatment } from '../types'
 import { useForm } from 'react-hook-form'
 
 interface CategoryForm { name: string; description?: string; isActive: boolean }
@@ -19,6 +21,8 @@ export function CategoriesPage() {
   const [modal, setModal]     = useState(false)
   const [editing, setEditing] = useState<Category | null>(null)
   const [delTarget, setDelTarget] = useState<Category | null>(null)
+  const [treatments, setTreatments] = useState<Treatment[]>([])
+  const [treatmentIds, setTreatmentIds] = useState<string[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -27,17 +31,22 @@ export function CategoriesPage() {
   }, [search, page])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { treatmentService.list({ limit: 500 }).then((r) => setTreatments(r.data)).catch(() => {}) }, [])
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CategoryForm>()
 
-  function openCreate() { reset({ name: '', isActive: true }); setEditing(null); setModal(true) }
-  function openEdit(c: Category) { reset({ name: c.name, description: c.description ?? '', isActive: c.isActive }); setEditing(c); setModal(true) }
+  function openCreate() { reset({ name: '', isActive: true }); setTreatmentIds([]); setEditing(null); setModal(true) }
+  function openEdit(c: Category) {
+    reset({ name: c.name, description: c.description ?? '', isActive: c.isActive })
+    setTreatmentIds((c.treatments ?? []).map((ct) => ct.treatmentId))
+    setEditing(c); setModal(true)
+  }
 
   async function onSubmit(d: CategoryForm) {
     setSaving(true)
     try {
-      if (editing) { await categoryService.update(editing.id, d); toast.success('Categoria atualizada.') }
-      else { await categoryService.create(d); toast.success('Categoria criada.') }
+      if (editing) { await categoryService.update(editing.id, { ...d, treatmentIds }); toast.success('Categoria atualizada.') }
+      else { await categoryService.create({ ...d, treatmentIds }); toast.success('Categoria criada.') }
       setModal(false); load()
     } catch { toast.error('Erro ao salvar.') }
     finally { setSaving(false) }
@@ -113,6 +122,7 @@ export function CategoriesPage() {
             <input type="checkbox" className="accent-primary w-4 h-4" {...register('isActive')} />
             <span className="text-sm font-medium text-text-primary">Ativa</span>
           </label>
+          <CategoryTreatmentsPicker value={treatmentIds} onChange={setTreatmentIds} treatments={treatments} />
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={() => setModal(false)} className="btn-secondary flex-1">Cancelar</button>
             <button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? 'Salvando...' : editing ? 'Salvar' : 'Criar'}</button>

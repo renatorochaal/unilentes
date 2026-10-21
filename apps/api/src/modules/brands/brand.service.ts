@@ -1,6 +1,7 @@
 import { prisma } from '../../config/prisma'
 import { AppError } from '../../shared/middleware/error.handler'
 import { z } from 'zod'
+import { categoryTreatmentsInclude } from '../categories/category-treatments'
 
 /** Aceita URLs absolutas (http/https) e paths relativos (/uploads/...) */
 const urlOrPath = z.string().refine(
@@ -33,7 +34,10 @@ export const brandService = {
         _count: { select: { products: true } },
         categories: {
           orderBy: { name: 'asc' },
-          include: { _count: { select: { products: true } } },
+          include: {
+            _count: { select: { products: true } },
+            treatments: categoryTreatmentsInclude,
+          },
         },
       },
     })

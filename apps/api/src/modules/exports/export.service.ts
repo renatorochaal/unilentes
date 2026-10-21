@@ -6,7 +6,20 @@ import path from 'path'
 import fs from 'fs'
 import { generateCsv } from './csv.generator'
 import { generatePdf, type CatalogExportMeta, type CatalogSection } from './pdf.generator'
+import { categoryTreatmentsInclude } from '../categories/category-treatments'
 import { z } from 'zod'
+
+const imagePageSchema = z.object({
+  imageUrl: z.string().refine(
+    (v) => v.startsWith('/uploads/') || v.startsWith('http://') || v.startsWith('https://'),
+    { message: 'Imagem deve ser um upload (/uploads/...) ou URL http(s).' },
+  ),
+  position: z.enum(['start', 'end', 'beforeBrand', 'afterBrand']),
+  brandId:  z.string().uuid().optional().nullable(),
+}).refine(
+  (p) => (p.position === 'start' || p.position === 'end') || !!p.brandId,
+  { message: 'Selecione a marca para páginas antes/depois de uma marca.', path: ['brandId'] },
+)
 
 export const exportRequestSchema = z.object({
   type:           z.enum(['PDF', 'CSV']),
@@ -16,6 +29,7 @@ export const exportRequestSchema = z.object({
   brandOrder:     z.array(z.string().uuid()).optional(),
   headerImageUrl: z.string().optional().nullable(),
   brandImages:    z.record(z.string().uuid(), z.string()).optional(),
+  imagePages:     z.array(imagePageSchema).max(50).optional(),
 })
 
 export type ExportFilters = z.infer<typeof exportRequestSchema>
@@ -101,6 +115,10 @@ export const exportService = {
             // Filtrar apenas os produtos que pertencem às seções
             const allIds = sections.flatMap((s) => s.productIds)
             productWhere.id = { in: allIds }
+            // productIds podem estar desatualizados (produto mudou de categoria
+            // via edição/importação) — nunca exportar fora da marca/categoria.
+            productWhere.brandId    = catalog.brandId
+            productWhere.categoryId = catalog.categoryId
           } else {
             // Sem seções: filtrar por marca + categoria do catálogo
             productWhere.brandId    = catalog.brandId
@@ -148,7 +166,7 @@ export const exportService = {
         orderBy: { code: 'asc' },
         include: {
           brand:    { select: { id: true, name: true } },
-          category: { select: { id: true, name: true } },
+          category: { select: { id: true, name: true, treatments: categoryTreatmentsInclude } },
           treatments: {
             include: { treatment: { select: { name: true } } },
             orderBy: { treatment: { name: 'asc' } },
@@ -184,7 +202,7 @@ export const exportService = {
         fileName = `catalogo_${timestamp}.pdf`
         filePath = path.join(exportsDir, fileName)
         const pdfCatalogMeta = filters.catalogId ? catalogMetas[0] : catalogMetas
-        const pdfBuffer = await generatePdf(products, pdfCatalogMeta, filters.headerImageUrl, filters.brandImages)
+        const pdfBuffer = await generatePdf(products, pdfCatalogMeta, filters.headerImageUrl, filters.brandImages, filters.imagePages)
         fs.writeFileSync(filePath, pdfBuffer)
         fileSize = pdfBuffer.length
       }

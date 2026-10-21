@@ -22,7 +22,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 3 * 1024 * 1024 }, // 3 MB
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB — páginas A4 inteiras do PDF passam de 3 MB
   fileFilter: (_req, file, cb) => {
     if (!file.mimetype.startsWith('image/')) {
       return cb(new AppError('Apenas imagens são permitidas.', 400) as unknown as null, false)

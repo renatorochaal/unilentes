@@ -1,11 +1,18 @@
 import { Prisma } from '@prisma/client'
 import path from 'path'
 import fs from 'fs'
+import { resolveTreatmentColumns } from '../categories/category-treatments'
 
 type ProductWithRelations = Prisma.ProductGetPayload<{
   include: {
     brand:    { select: { id: true; name: true } }
-    category: { select: { id: true; name: true } }
+    category: {
+      select: {
+        id: true
+        name: true
+        treatments: { include: { treatment: { select: { id: true; name: true } } } }
+      }
+    }
     treatments: {
       include: { treatment: { select: { name: true } } }
     }
@@ -32,6 +39,16 @@ export interface CatalogExportMeta {
   categoryName?: string | null
 }
 
+export type PdfImagePagePosition = 'start' | 'end' | 'beforeBrand' | 'afterBrand'
+
+/** Página inteira (A4) com uma imagem, inserida numa posição do PDF. */
+export interface PdfImagePage {
+  imageUrl: string
+  position: PdfImagePagePosition
+  /** Obrigatório quando position é beforeBrand/afterBrand. */
+  brandId?: string | null
+}
+
 function formatPrice(val: Prisma.Decimal | null | undefined): string {
   if (val == null) return '-'
   const n = Number(val)
@@ -44,21 +61,32 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+const IMAGE_MIME_BY_EXT: Record<string, string> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+}
+
 function resolveImageToBase64(url: string | null | undefined): string | null {
   if (!url) return null
   try {
     if (url.startsWith('/uploads/')) {
-      const localPath = path.resolve('./uploads', url.replace(/^\/uploads\//, ''))
-      if (fs.existsSync(localPath)) {
-        const buf = fs.readFileSync(localPath)
-        const ext = path.extname(localPath).slice(1) || 'png'
-        const mime = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`
-        return `data:${mime};base64,${buf.toString('base64')}`
+      const uploadsDir = path.resolve('./uploads')
+      const localPath = path.resolve(uploadsDir, url.replace(/^\/uploads\//, ''))
+      // A URL vem do cliente: bloqueia path traversal (/uploads/../.env) e
+      // qualquer arquivo que não seja imagem conhecida.
+      if (!localPath.startsWith(uploadsDir + path.sep)) return null
+      const mime = IMAGE_MIME_BY_EXT[path.extname(localPath).slice(1).toLowerCase()]
+      if (mime && fs.existsSync(localPath)) {
+        return `data:${mime};base64,${fs.readFileSync(localPath).toString('base64')}`
       }
     }
     if (url.startsWith('http')) return url
   } catch { /* ignore */ }
   return null
+}
+
+function escAttr(s: string): string {
+  return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }
 
 
@@ -72,6 +100,7 @@ export function buildPdfHtml(
   catalogMeta?: CatalogExportMeta | CatalogExportMeta[],
   headerImageUrl?: string | null,
   brandImages?: Record<string, string> | null,
+  imagePages?: PdfImagePage[] | null,
 ): string {
   const isMultiCatalog = Array.isArray(catalogMeta)
   const catalogMetas = catalogMeta
@@ -82,12 +111,6 @@ export function buildPdfHtml(
     ?? null
   const heroImage = resolveImageToBase64(effectiveImageUrl)
 
-  const treatmentNames = Array.from(
-    new Set(products.flatMap((p) => p.treatments.map((t) => t.treatment.name)))
-  ).sort()
-  const hasTreatments = treatmentNames.length > 0
-  const arCount = treatmentNames.length
-
   // Larguras de coluna calculadas para caber na área útil do A4 retrato
   // (595pt ≈ 734px de largura útil, descontando padding do body). Colunas
   // numéricas foram enxugadas para sobrar mais espaço pra MATERIAL, que é
@@ -97,10 +120,14 @@ export function buildPdfHtml(
   const MIN_MATERIAL_W = 110
   const fixedColsSum = COL_CODE + COL_ESF + COL_CIL + COL_DIAM + COL_ADD + COL_NOAR
   const arBudget = Math.max(0, PORTRAIT_CONTENT_W - fixedColsSum - MIN_MATERIAL_W)
-  const arColWidth = hasTreatments ? Math.max(46, Math.floor(arBudget / arCount)) : 0
-  const materialColWidth = Math.max(MIN_MATERIAL_W, PORTRAIT_CONTENT_W - fixedColsSum - arColWidth * arCount)
 
-  function buildColgroup(): string {
+  // As colunas de tratamento são definidas por categoria (cada grupo), então
+  // a largura também é calculada por grupo.
+  function buildColgroup(treatmentNames: string[]): string {
+    const arCount = treatmentNames.length
+    const hasTreatments = arCount > 0
+    const arColWidth = hasTreatments ? Math.max(46, Math.floor(arBudget / arCount)) : 0
+    const materialColWidth = Math.max(MIN_MATERIAL_W, PORTRAIT_CONTENT_W - fixedColsSum - arColWidth * arCount)
     const arCols = hasTreatments
       ? Array.from({ length: arCount }, () => `<col style="width:${arColWidth}px">`).join('')
       : ''
@@ -121,7 +148,13 @@ export function buildPdfHtml(
     badge?: string | null
     items: ProductWithRelations[]
   }
-  interface RenderGroup { title: string; tables: RenderTable[]; bannerImage?: string | null }
+  interface RenderGroup {
+    brandId: string
+    title: string
+    tables: RenderTable[]
+    treatmentNames: string[]
+    bannerImage?: string | null
+  }
   const groups: RenderGroup[] = []
 
   const productGroups = new Map<string, {
@@ -187,13 +220,17 @@ export function buildPdfHtml(
     const catalogBannerImage = isMultiCatalog ? meta?.headerImage : null
 
     groups.push({
+      brandId: productGroup.brandId,
       title: `${productGroup.brandName} — ${productGroup.categoryName}`,
       tables,
+      treatmentNames: resolveTreatmentColumns(productGroup.items[0]?.category.treatments, productGroup.items),
       bannerImage: resolveImageToBase64(brandOverrideImage ?? catalogBannerImage),
     })
   }
 
-  function renderTable(table: RenderTable): string {
+  function renderTable(table: RenderTable, treatmentNames: string[]): string {
+    const hasTreatments = treatmentNames.length > 0
+    const arCount = treatmentNames.length
     const rows = table.items.map((p, i) => {
       const pm = Object.fromEntries(p.treatments.map((t) => [t.treatment.name, t.price]))
       const cls = i % 2 === 0 ? 'ze' : 'zo'
@@ -243,7 +280,7 @@ export function buildPdfHtml(
         ${table.badge ? `<span class="pill">${esc(table.badge.toUpperCase())}</span>` : ''}
       </div>` : ''}
       <table>
-        ${buildColgroup()}
+        ${buildColgroup(treatmentNames)}
         <thead>${theadHtml}</thead>
         <tbody>${rows}</tbody>
       </table>
@@ -257,7 +294,7 @@ export function buildPdfHtml(
     return `<div class="category-group">
       ${bannerHtml}
       <h1 class="category-title">${esc(group.title)}</h1>
-      ${group.tables.map((table) => renderTable(table)).join('')}
+      ${group.tables.map((table) => renderTable(table, group.treatmentNames)).join('')}
     </div>`
   }
 
@@ -265,19 +302,58 @@ export function buildPdfHtml(
     ? `<div class="hero" style="background-image:url('${heroImage}');"></div>`
     : ''
 
+  function renderImagePages(pages: PdfImagePage[]): string {
+    return pages
+      .map((page) => resolveImageToBase64(page.imageUrl))
+      .filter((src): src is string => !!src)
+      .map((src) => `<div class="image-page"><img src="${escAttr(src)}" alt=""></div>`)
+      .join('')
+  }
+  const pagesAt = (position: PdfImagePagePosition, brandId?: string) =>
+    renderImagePages((imagePages ?? []).filter((page) =>
+      page.position === position && (brandId === undefined || page.brandId === brandId)))
+
+  // Monta o corpo respeitando as posições das páginas de imagem: antes do
+  // primeiro grupo e depois do último grupo de cada marca.
+  const bodyParts: string[] = [pagesAt('start'), heroHtml]
+  groups.forEach((group, i) => {
+    const isFirstOfBrand = groups[i - 1]?.brandId !== group.brandId
+    const isLastOfBrand  = groups[i + 1]?.brandId !== group.brandId
+    if (isFirstOfBrand) bodyParts.push(pagesAt('beforeBrand', group.brandId))
+    bodyParts.push(renderGroup(group))
+    if (isLastOfBrand) bodyParts.push(pagesAt('afterBrand', group.brandId))
+  })
+  bodyParts.push(pagesAt('end'))
+
   return `<!DOCTYPE html>
 <html lang="pt-BR"><head><meta charset="utf-8">
 <style>
 @page { size: A4 portrait; margin: 0; }
+/* Página nomeada: força quebra antes/depois e ocupa a folha inteira */
+@page fullbleed { size: A4 portrait; margin: 0; }
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
   font-family: Arial, Helvetica, sans-serif;
   font-size: 10px;
   color: #4a4a4a;
-  padding: 24px 30px;
+  padding: 0 30px;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
+
+.doc-top { height:24px; }
+
+.image-page {
+  page: fullbleed;
+  break-before: page; break-after: page;
+  /* anula o padding lateral do body; 296mm evita sobra que gera folha em branco */
+  margin: 0 -30px;
+  width: 210mm; height: 296mm;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.image-page img { max-width:100%; max-height:100%; object-fit:contain; }
+.image-page + .category-group, .image-page + .hero { margin-top:24px; }
 
 .hero {
   width:100%; height:150px;
@@ -414,8 +490,8 @@ tr { page-break-inside:avoid; }
 </style>
 </head>
 <body>
-${heroHtml}
-${groups.map((group) => renderGroup(group)).join('')}
+${bodyParts[0] ? '' : '<div class="doc-top"></div>'}
+${bodyParts.join('')}
 </body></html>`
 }
 
@@ -424,8 +500,9 @@ export async function generatePdf(
   catalogMeta?: CatalogExportMeta | CatalogExportMeta[],
   headerImageUrl?: string | null,
   brandImages?: Record<string, string> | null,
+  imagePages?: PdfImagePage[] | null,
 ): Promise<Buffer> {
-  const html = buildPdfHtml(products, catalogMeta, headerImageUrl, brandImages)
+  const html = buildPdfHtml(products, catalogMeta, headerImageUrl, brandImages, imagePages)
   const chromeRuntimeDir = process.env.CHROME_RUNTIME_DIR ?? path.join('/tmp', `unilentes-chrome-${process.env.USER ?? 'app'}`)
   const chromeHomeDir = path.join(chromeRuntimeDir, 'home')
   const chromeUserDataDir = path.join(chromeRuntimeDir, 'profile')
