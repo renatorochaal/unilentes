@@ -14,26 +14,7 @@ Aplicação web (SPA) para o sistema Unilentes, construída com React, TypeScrip
 
 ## 🚀 Como executar localmente
 
-### 1. Instalar dependências
-Certifique-se de usar o `pnpm` (padrão do workspace):
-```bash
-pnpm install
-```
-
-### 2. Configurar variáveis de ambiente
-Crie um arquivo `.env` na raiz da pasta `front-unilentes` (você pode copiar do `.env.example` se existir):
-```env
-VITE_API_URL=http://localhost:3030
-```
-
-Essa variável é usada apenas em desenvolvimento. Em produção, o frontend acessa
-a API pelo mesmo domínio, usando o proxy reverso das rotas `/api`.
-
-### 3. Rodar o servidor de desenvolvimento
-```bash
-pnpm run dev
-```
-A aplicação ficará disponível em `http://localhost:5173` (ou outra porta indicada no terminal).
+Instalação, variáveis de ambiente e execução estão no [README da raiz](../../README.md).
 
 ## 📦 Scripts Disponíveis
 

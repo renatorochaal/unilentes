@@ -27,6 +27,10 @@ pnpm-debug.log*
 apps/api/exports/*
 !apps/api/exports/.gitkeep
 
+# Imagens enviadas pelo sistema
+apps/api/uploads/*
+!apps/api/uploads/.gitkeep
+
 # Prisma local databases
 apps/api/prisma/*.db
 apps/api/prisma/*.db-journal

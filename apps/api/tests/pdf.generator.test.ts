@@ -15,7 +15,8 @@ test('gera PDF agrupado por marca/categoria e tabelas por linha', async (context
   assert.match(html, /<h1 class="category-title">ZEISS — Multifocais<\/h1>/)
   assert.match(html, /<h2>Progressive GT2 NE Freeform Blueguard<\/h2>/)
   assert.match(html, /<h2>Classic Plus Freeform Blueguard<\/h2>/)
-  assert.match(html, /justify-content:center/)
+  assert.match(html, /\.line-title \{[^}]*display:grid/)
+  assert.doesNotMatch(html, /\.pill \{[^}]*position:absolute/)
   assert.equal(html.match(/<table[ >]/g)?.length, 2)
   assert.ok(html.indexOf('Progressive GT2 NE Freeform Blueguard') < html.indexOf('Classic Plus Freeform Blueguard'))
 

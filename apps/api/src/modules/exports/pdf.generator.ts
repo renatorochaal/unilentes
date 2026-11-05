@@ -386,12 +386,16 @@ body {
   letter-spacing:-0.4px;
 }
 .section { margin-bottom:24px; }
+/* Laterais 1fr de mesma largura: título fica centralizado e, se for longo,
+   quebra linha em vez de passar por baixo da pill. */
 .line-title {
-  display:flex; align-items:center; justify-content:center; gap:24px;
+  display:grid; grid-template-columns:1fr minmax(0, auto) 1fr;
+  align-items:center; column-gap:16px;
   min-height:28px; margin-bottom:6px;
-  position:relative; text-align:center;
+  text-align:center;
 }
 .line-title h2 {
+  grid-column:2;
   font-size:16px; font-weight:700; color:#3c3c3c;
   letter-spacing:-0.2px;
 }
@@ -403,7 +407,7 @@ body {
   color:#14a9e0; background:#fff;
   white-space:nowrap;
 }
-.line-title .pill { position:absolute; right:0; }
+.line-title .pill { grid-column:3; justify-self:end; }
 
 /* ── Table ─────────────────────────────── */
 table {
