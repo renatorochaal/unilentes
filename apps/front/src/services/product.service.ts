@@ -73,4 +73,14 @@ export const productService = {
   async remove(id: string) {
     await api.delete(`/api/products/${id}`)
   },
+
+  async removeMany(ids: string[]) {
+    const { data } = await api.post<ApiResponse<{ count: number }>>('/api/products/bulk-delete', { ids })
+    return data.data
+  },
+
+  async setActiveMany(ids: string[], isActive: boolean) {
+    const { data } = await api.post<ApiResponse<{ count: number }>>('/api/products/bulk-status', { ids, isActive })
+    return data.data
+  },
 }

@@ -16,7 +16,7 @@ test('gera PDF agrupado por marca/categoria e tabelas por linha', async (context
   assert.match(html, /<h2>Progressive GT2 NE Freeform Blueguard<\/h2>/)
   assert.match(html, /<h2>Classic Plus Freeform Blueguard<\/h2>/)
   assert.match(html, /justify-content:center/)
-  assert.equal(html.match(/<table>/g)?.length, 2)
+  assert.equal(html.match(/<table[ >]/g)?.length, 2)
   assert.ok(html.indexOf('Progressive GT2 NE Freeform Blueguard') < html.indexOf('Classic Plus Freeform Blueguard'))
 
   const pdf = await generatePdf(mockProducts, mockCatalogMeta)
@@ -83,4 +83,19 @@ test('páginas de imagem respeitam a posição e bloqueiam path traversal', () =
   assert.doesNotMatch(html, /outra\.png/)
   // Começa com página de imagem: sem o espaçador do topo
   assert.doesNotMatch(html, /class="doc-top"/)
+})
+
+test('tabela com 8 tratamentos cabe na página e preço não quebra linha', () => {
+  const names = ['CRIZAL EASY PRO', 'CRIZAL ROCK UV', 'CRIZAL SAPPHIRE', 'NATURAL LOOK', 'NO REFLEX', 'OPTIFOG', 'TRIO EASY CLEAN', 'VERNIZ HC']
+  const product = {
+    ...mockProducts[0],
+    treatments: names.map((name) => ({ treatment: { name }, price: 5849 })),
+  } as unknown as (typeof mockProducts)[number]
+
+  const html = buildPdfHtml([product])
+  assert.match(html, /<table class="dense">/)
+  const widths = [...html.split('<colgroup>')[1].split('</colgroup>')[0].matchAll(/width:(\d+)px/g)].map((m) => Number(m[1]))
+  assert.equal(widths.length, 7 + names.length)
+  assert.ok(widths.reduce((a, b) => a + b, 0) <= 734)
+  assert.match(html, /td\.cp \{[^}]*white-space:nowrap/)
 })

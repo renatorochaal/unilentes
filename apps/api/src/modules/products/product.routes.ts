@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { Request, Response, NextFunction } from 'express'
-import { authGuard } from '../../shared/middleware/auth.guard'
-import { productService, productSchema } from './product.service'
+import { authGuard, requireAdmin } from '../../shared/middleware/auth.guard'
+import { productService, productSchema, productBulkDeleteSchema, productBulkStatusSchema } from './product.service'
 import { validate } from '../../shared/middleware/validate'
 import { AppError } from '../../shared/middleware/error.handler'
 import { importProductsCsv } from './product.import'
@@ -27,6 +27,21 @@ productRouter.post('/import', csvUpload.single('file'), async (req: Request, res
     if (!req.file) throw new AppError('Nenhum arquivo enviado.', 400)
     const data = await importProductsCsv(req.file.buffer, req.query.dryRun === 'true')
     // Erros de validação voltam no corpo (200) para o front exibir a lista por linha
+    res.json({ status: 'success', data })
+  } catch (e) { next(e) }
+})
+
+// Exclusão em lote é irreversível: restrita a ADMIN
+productRouter.post('/bulk-delete', requireAdmin, validate(productBulkDeleteSchema), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = await productService.removeMany(req.body.ids)
+    res.json({ status: 'success', data })
+  } catch (e) { next(e) }
+})
+
+productRouter.post('/bulk-status', validate(productBulkStatusSchema), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = await productService.setActiveMany(req.body.ids, req.body.isActive)
     res.json({ status: 'success', data })
   } catch (e) { next(e) }
 })

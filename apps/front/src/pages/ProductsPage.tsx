@@ -243,6 +243,9 @@ export function ProductsPage() {
   const [editing, setEditing]     = useState<Product | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null)
   const [importOpen, setImportOpen] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkBusy, setBulkBusy] = useState(false)
   const page = Number(searchParams.get('page') ?? 1)
 
   const load = useCallback(async () => {
@@ -264,6 +267,9 @@ export function ProductsPage() {
   }, [page, search, brandFilter, categoryFilter])
 
   useEffect(() => { load() }, [load])
+
+  // Seleção vale só para a lista visível: nunca age em item que o usuário não vê
+  useEffect(() => { setSelectedIds(new Set()) }, [products])
 
   useEffect(() => {
     brandService.list({ limit: 200 }).then((r) => setBrands(r.data))
@@ -317,6 +323,43 @@ export function ProductsPage() {
       load()
     } catch {
       toast.error('Erro ao remover produto.')
+    }
+  }
+
+  const allSelected = products.length > 0 && selectedIds.size === products.length
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
+  }
+
+  async function handleBulkStatus(isActive: boolean) {
+    setBulkBusy(true)
+    try {
+      const { count } = await productService.setActiveMany([...selectedIds], isActive)
+      toast.success(`${count} produto(s) ${isActive ? 'ativado(s)' : 'inativado(s)'}.`)
+      load()
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Erro ao alterar produtos.')
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
+  async function handleBulkDelete() {
+    setBulkBusy(true)
+    try {
+      const { count } = await productService.removeMany([...selectedIds])
+      toast.success(`${count} produto(s) removido(s).`)
+      setBulkDeleteOpen(false)
+      load()
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Erro ao remover produtos.')
+    } finally {
+      setBulkBusy(false)
     }
   }
 
@@ -375,6 +418,15 @@ export function ProductsPage() {
         )}
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className="card p-3 mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-text-primary mr-auto">{selectedIds.size} selecionado(s)</span>
+          <button onClick={() => handleBulkStatus(true)} disabled={bulkBusy} className="btn-secondary">Ativar</button>
+          <button onClick={() => handleBulkStatus(false)} disabled={bulkBusy} className="btn-secondary">Inativar</button>
+          <button onClick={() => setBulkDeleteOpen(true)} disabled={bulkBusy} className="btn-danger">Excluir</button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="card overflow-hidden">
         {loading ? (
@@ -389,6 +441,15 @@ export function ProductsPage() {
             <table className="table-base">
               <thead>
                 <tr>
+                  <th className="w-10">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 accent-primary"
+                      aria-label="Selecionar todos desta página"
+                      checked={allSelected}
+                      onChange={() => setSelectedIds(allSelected ? new Set() : new Set(products.map((p) => p.id)))}
+                    />
+                  </th>
                   <th>Código</th>
                   <th>Nome</th>
                   <th>Marca</th>
@@ -402,6 +463,15 @@ export function ProductsPage() {
               <tbody>
                 {products.map((p) => (
                   <tr key={p.id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 accent-primary"
+                        aria-label={`Selecionar ${p.code}`}
+                        checked={selectedIds.has(p.id)}
+                        onChange={() => toggleSelected(p.id)}
+                      />
+                    </td>
                     <td className="font-mono text-xs font-semibold text-text-primary">{p.code}</td>
                     <td className="font-medium text-text-primary">{p.name}</td>
                     <td className="text-text-secondary">{p.brand.name}</td>
@@ -473,6 +543,22 @@ export function ProductsPage() {
           onCancel={() => { setModalOpen(false); setEditing(null) }}
           loading={saving}
         />
+      </Modal>
+
+      {/* Modal confirmar exclusão em lote */}
+      <Modal
+        isOpen={bulkDeleteOpen}
+        onClose={() => setBulkDeleteOpen(false)}
+        title="Confirmar exclusão em lote"
+        size="sm"
+      >
+        <p className="text-sm text-text-secondary mb-6">
+          Remover <span className="font-semibold text-text-primary">{selectedIds.size} produto(s)</span> e seus preços de tratamento? Esta ação não pode ser desfeita. Para tirar do catálogo sem apagar, use Inativar.
+        </p>
+        <div className="flex gap-3">
+          <button onClick={() => setBulkDeleteOpen(false)} className="btn-secondary flex-1">Cancelar</button>
+          <button onClick={handleBulkDelete} disabled={bulkBusy} className="btn-danger flex-1">{bulkBusy ? 'Excluindo...' : 'Excluir'}</button>
+        </div>
       </Modal>
 
       {/* Modal confirmar exclusão */}

@@ -115,30 +115,41 @@ export function buildPdfHtml(
   // (595pt ≈ 734px de largura útil, descontando padding do body). Colunas
   // numéricas foram enxugadas para sobrar mais espaço pra MATERIAL, que é
   // a que mais varia de tamanho (nomes longos de lente).
-  const COL_CODE = 50, COL_ESF = 76, COL_CIL = 38, COL_DIAM = 36, COL_ADD = 60, COL_NOAR = 56
   const PORTRAIT_CONTENT_W = 734
-  const MIN_MATERIAL_W = 110
-  const fixedColsSum = COL_CODE + COL_ESF + COL_CIL + COL_DIAM + COL_ADD + COL_NOAR
-  const arBudget = Math.max(0, PORTRAIT_CONTENT_W - fixedColsSum - MIN_MATERIAL_W)
+  const NORMAL_COLS = { code: 50, esf: 76, cil: 38, diam: 36, add: 60, noAR: 56, minMaterial: 110 }
+  // Tabelas com muitos tratamentos: colunas fixas menores (com fonte menor,
+  // ver .dense no CSS) para o preço caber sem quebrar nem estourar a página.
+  const DENSE_COLS = { code: 42, esf: 62, cil: 30, diam: 30, add: 48, noAR: 48, minMaterial: 90 }
+  const MIN_NORMAL_AR_W = 60
 
   // As colunas de tratamento são definidas por categoria (cada grupo), então
   // a largura também é calculada por grupo.
+  function computeLayout(arCount: number) {
+    const fixedSum = (c: typeof NORMAL_COLS) => c.code + c.esf + c.cil + c.diam + c.add + c.noAR
+    const arWidth = (c: typeof NORMAL_COLS) =>
+      arCount ? Math.floor((PORTRAIT_CONTENT_W - fixedSum(c) - c.minMaterial) / arCount) : 0
+    const dense = arCount > 0 && arWidth(NORMAL_COLS) < MIN_NORMAL_AR_W
+    const cols = dense ? DENSE_COLS : NORMAL_COLS
+    const arColWidth = arWidth(cols)
+    return {
+      dense,
+      cols,
+      arColWidth,
+      materialColWidth: PORTRAIT_CONTENT_W - fixedSum(cols) - arColWidth * arCount,
+    }
+  }
+
   function buildColgroup(treatmentNames: string[]): string {
-    const arCount = treatmentNames.length
-    const hasTreatments = arCount > 0
-    const arColWidth = hasTreatments ? Math.max(46, Math.floor(arBudget / arCount)) : 0
-    const materialColWidth = Math.max(MIN_MATERIAL_W, PORTRAIT_CONTENT_W - fixedColsSum - arColWidth * arCount)
-    const arCols = hasTreatments
-      ? Array.from({ length: arCount }, () => `<col style="width:${arColWidth}px">`).join('')
-      : ''
+    const { cols, arColWidth, materialColWidth } = computeLayout(treatmentNames.length)
+    const arCols = treatmentNames.map(() => `<col style="width:${arColWidth}px">`).join('')
     return `<colgroup>
-      <col style="width:${COL_CODE}px">
+      <col style="width:${cols.code}px">
       <col style="width:${materialColWidth}px">
-      <col style="width:${COL_ESF}px">
-      <col style="width:${COL_CIL}px">
-      <col style="width:${COL_DIAM}px">
-      <col style="width:${COL_ADD}px">
-      <col style="width:${COL_NOAR}px">
+      <col style="width:${cols.esf}px">
+      <col style="width:${cols.cil}px">
+      <col style="width:${cols.diam}px">
+      <col style="width:${cols.add}px">
+      <col style="width:${cols.noAR}px">
       ${arCols}
     </colgroup>`
   }
@@ -279,7 +290,7 @@ export function buildPdfHtml(
         ${table.title ? `<h2>${esc(table.title)}</h2>` : ''}
         ${table.badge ? `<span class="pill">${esc(table.badge.toUpperCase())}</span>` : ''}
       </div>` : ''}
-      <table>
+      <table${computeLayout(arCount).dense ? ' class="dense"' : ''}>
         ${buildColgroup(treatmentNames)}
         <thead>${theadHtml}</thead>
         <tbody>${rows}</tbody>
@@ -479,8 +490,14 @@ td.cs { text-align:left; white-space:normal; word-break:normal; overflow-wrap:br
 td.cy { text-align:center; }
 td.cd { text-align:center; }
 td.ca { text-align:left; }
-td.cn { text-align:center; color:#6b6b6b; }
-td.cp { text-align:center; }
+td.cn { text-align:center; color:#6b6b6b; white-space:nowrap; }
+td.cp { text-align:center; white-space:nowrap; }
+
+/* Tabelas com muitos tratamentos (ver computeLayout) */
+table.dense tbody td { font-size:9px; padding:0 2px; }
+table.dense .hdr1 th { font-size:8px; padding-left:2px; padding-right:2px; }
+table.dense .hdr1 th.ar-top { font-size:11px; }
+table.dense .hdr2 th.ar-sub { font-size:7px; padding:0 2px; }
 
 /* ── Print ─────────────────────────────── */
 thead { display:table-header-group; }

@@ -36,6 +36,15 @@ export const productSchema = z.object({
 
 export type ProductInput = z.infer<typeof productSchema>
 
+const productIdsSchema = z.array(z.string().uuid()).min(1, 'Selecione ao menos um produto.').max(500)
+
+export const productBulkDeleteSchema = z.object({ ids: productIdsSchema })
+
+export const productBulkStatusSchema = z.object({
+  ids:      productIdsSchema,
+  isActive: z.boolean(),
+})
+
 const productInclude = {
   brand:    { select: { id: true, name: true, logoUrl: true } },
   category: { select: { id: true, name: true } },
@@ -143,5 +152,15 @@ export const productService = {
   async remove(id: string) {
     await this.getById(id)
     return prisma.product.delete({ where: { id } })
+  },
+
+  async removeMany(ids: string[]) {
+    const { count } = await prisma.product.deleteMany({ where: { id: { in: ids } } })
+    return { count }
+  },
+
+  async setActiveMany(ids: string[], isActive: boolean) {
+    const { count } = await prisma.product.updateMany({ where: { id: { in: ids } }, data: { isActive } })
+    return { count }
   },
 }
