@@ -6,7 +6,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "test:pdf": "tsx --test tests/pdf.generator.test.ts",
-    "test:import": "tsx --test tests/product.spreadsheet.test.ts",
+    "test:import": "tsx --test tests/product.spreadsheet.test.ts tests/error.handler.test.ts",
     "start": "node dist/server.js",
     "lint": "eslint . --ext .ts --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --ext .ts --fix",

@@ -340,7 +340,8 @@ async function applyBatch(batch: ImportBatch, { dryRun, createMissing }: ImportO
   ])
   const brandByKey = new Map(brands.map((b) => [normalizeHeader(b.name), b]))
   const treatmentByKey = new Map(treatments.map((t) => [normalizeHeader(t.name), t]))
-  const productIdByCode = new Map(existingProducts.map((p) => [p.code, p.id]))
+  // trim: o índice único do MySQL ignora espaço no fim do código
+  const productIdByCode = new Map(existingProducts.map((p) => [p.code.trim(), p.id]))
   const findCategory = (name: string, brandId: string | undefined) => {
     const key = normalizeHeader(name)
     return categories.find((c) => c.brandId === brandId && normalizeHeader(c.name) === key)
@@ -402,13 +403,17 @@ async function applyBatch(batch: ImportBatch, { dryRun, createMissing }: ImportO
       newCategoryIds.get(categoryKey(brand, category))
         ?? findCategory(category, brandByKey.get(normalizeHeader(brand))?.id)!.id
 
+    // Agrupa por id: nomes ou abas diferentes podem levar ao mesmo tratamento e categoria
+    const columnsByCategory = new Map<string, Set<string>>()
     for (const c of columnsToConfigure) {
+      const categoryId = categoryIdOf(c.brand, c.category)
+      const ids = columnsByCategory.get(categoryId) ?? new Set<string>()
+      for (const name of c.treatments) ids.add(treatmentByKey.get(normalizeHeader(name))!.id)
+      columnsByCategory.set(categoryId, ids)
+    }
+    for (const [categoryId, ids] of columnsByCategory) {
       await tx.categoryTreatment.createMany({
-        data: c.treatments.map((name, sortOrder) => ({
-          categoryId: categoryIdOf(c.brand, c.category),
-          treatmentId: treatmentByKey.get(normalizeHeader(name))!.id,
-          sortOrder,
-        })),
+        data: [...ids].map((treatmentId, sortOrder) => ({ categoryId, treatmentId, sortOrder })),
       })
     }
 

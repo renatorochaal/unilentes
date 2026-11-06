@@ -28,11 +28,14 @@ export function errorHandler(
 
   // Erros do Prisma
   if (err.constructor.name === 'PrismaClientKnownRequestError') {
-    const prismaErr = err as unknown as { code: string; meta?: { target?: string[] } }
+    // No MySQL, target vem como o nome do índice (string), não como lista de campos
+    const prismaErr = err as unknown as { code: string; meta?: { target?: string | string[] } }
     if (prismaErr.code === 'P2002') {
+      const target = [prismaErr.meta?.target ?? 'valor'].flat().join(', ')
+      console.error('Registro duplicado:', target)
       res.status(409).json({
         status: 'error',
-        message: `Já existe um registro com este ${prismaErr.meta?.target?.join(', ') ?? 'valor'}.`,
+        message: `Já existe um registro com este ${target}.`,
       })
       return
     }

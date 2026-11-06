@@ -74,7 +74,8 @@ function treatmentResolver(known: string[]): TreatmentResolver {
   const byKey = new Map([...BASE_TREATMENTS, ...known].map((name) => [norm(name), name]))
   return (raw) => {
     const key = norm(raw)
-    return TREATMENT_ALIASES[key] ?? byKey.get(key) ?? null
+    // O apelido também passa pelo cadastro: a grafia final precisa ser uma só
+    return byKey.get(norm(TREATMENT_ALIASES[key] ?? key)) ?? null
   }
 }
 

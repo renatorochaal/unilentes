@@ -82,6 +82,20 @@ test('coluna desconhecida não vira tratamento e fica registrada', () => {
   assert.deepEqual(known.ignoredColumns, [])
 })
 
+test('apelido e nome direto resolvem para a mesma grafia do cadastro', () => {
+  const [sheet] = parseWorkbook(workbook({
+    Zeiss: [
+      ['Código WEB', 'Material', 'Sem AR'],
+      [null, null, null, 'DV Chrome', 'DV Gold'],
+      [4001, 'A', 100, 200, 300],
+      [null, null, null, 'DV Chrome', 'DV Gold UV'],
+      [4002, 'B', 100, 200, 300],
+    ],
+  }), ['DV GOLD UV'])
+
+  assert.deepEqual(sheet.treatments, ['DV Chrome', 'DV GOLD UV'])
+})
+
 test('código repetido fica com a primeira aba selecionada', () => {
   const sheetRows = (name: string, price: number) => [
     ['Código WEB', 'Material', 'Sem AR'],
