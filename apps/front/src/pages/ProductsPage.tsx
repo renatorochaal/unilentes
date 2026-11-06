@@ -271,11 +271,13 @@ export function ProductsPage() {
   // Seleção vale só para a lista visível: nunca age em item que o usuário não vê
   useEffect(() => { setSelectedIds(new Set()) }, [products])
 
-  useEffect(() => {
+  const loadOptions = useCallback(() => {
     brandService.list({ limit: 200 }).then((r) => setBrands(r.data))
     categoryService.list({ limit: 200 }).then((r) => setCategories(r.data))
     treatmentService.list({ limit: 500 }).then((r) => setTreatments(r.data))
   }, [])
+
+  useEffect(() => { loadOptions() }, [loadOptions])
 
   function applyFilters() {
     const p: Record<string, string> = {}
@@ -373,7 +375,7 @@ export function ProductsPage() {
         <div className="flex gap-2">
           <button onClick={() => setImportOpen(true)} className="btn-secondary" id="btn-import-products">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Importar CSV
+            Importar arquivo
           </button>
           <button
             onClick={() => { setEditing(null); setModalOpen(true) }}
@@ -523,8 +525,9 @@ export function ProductsPage() {
       <ProductImportModal
         isOpen={importOpen}
         onClose={() => setImportOpen(false)}
-        onImported={load}
+        onImported={() => { load(); loadOptions() }}
         treatments={treatments}
+        brands={brands}
       />
 
       {/* Modal criar/editar */}

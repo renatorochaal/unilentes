@@ -6,6 +6,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "test:pdf": "tsx --test tests/pdf.generator.test.ts",
+    "test:import": "tsx --test tests/product.spreadsheet.test.ts",
     "start": "node dist/server.js",
     "lint": "eslint . --ext .ts --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --ext .ts --fix",
@@ -25,6 +26,7 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.1.1",
     "puppeteer": "^25.1.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3.24.1"
   },
   "devDependencies": {

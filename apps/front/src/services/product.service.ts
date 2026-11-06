@@ -29,22 +29,53 @@ export interface ProductInput {
   treatments?: { treatmentId: string; price: number }[]
 }
 
+export interface ImportSheetSummary {
+  name: string
+  products: number
+  treatments: string[]
+  duplicates: number
+  conflicts: number
+  ignoredColumns: { name: string; prices: number }[]
+  suggestedBrand: string
+  suggestedCategory: string
+}
+
+export interface SheetMapping {
+  sheet: string
+  brand: string
+  category: string
+}
+
 export interface ProductImportResult {
   dryRun: boolean
+  needsMapping: boolean
+  sheets: ImportSheetSummary[]
   total: number
   created: number
   updated: number
   treatmentColumns: string[]
-  errors: { line: number; code?: string; message: string }[]
+  newBrands: string[]
+  newCategories: string[]
+  newTreatments: string[]
+  configuredCategories: string[]
+  warnings: string[]
+  errors: { line: number; sheet?: string; code?: string; message: string }[]
+}
+
+export interface ProductImportOptions {
+  dryRun: boolean
+  createMissing: boolean
+  mapping?: SheetMapping[]
 }
 
 export const productService = {
   /** dryRun=true só valida e devolve o resumo; nada é gravado. */
-  async importCsv(file: File, dryRun: boolean) {
+  async importFile(file: File, { dryRun, createMissing, mapping }: ProductImportOptions) {
     const form = new FormData()
     form.append('file', file)
+    if (mapping) form.append('mapping', JSON.stringify(mapping))
     const { data } = await api.post<ApiResponse<ProductImportResult>>('/api/products/import', form, {
-      params: { dryRun },
+      params: { dryRun, createMissing },
       headers: { 'Content-Type': 'multipart/form-data' },
     })
     return data.data

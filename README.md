@@ -99,6 +99,7 @@ pnpm front:dev   # Front em http://localhost:5173
 
 ```bash
 pnpm --dir apps/api test:pdf             # testes do gerador de PDF (abre o Chrome)
+pnpm --dir apps/api test:import          # testes do leitor de planilhas
 pnpm --dir apps/api exec tsc --noEmit    # checagem de tipos da API
 pnpm --dir apps/front exec tsc --noEmit  # checagem de tipos do front
 ```
@@ -113,18 +114,29 @@ PDF_TEST_OUTPUT=/tmp/teste.pdf pnpm --dir apps/api test:pdf
 
 ### Importar produtos
 
-Em **Produtos > Importar CSV**:
+Em **Produtos > Importar arquivo**, envie a tabela de preços em Excel (`.xlsx`, `.xlsb`, `.xls`) ou um CSV, com até 30 MB.
+
+**Planilha:**
+
+1. Envie o arquivo. O sistema lista as abas que têm produtos.
+2. Escolha as abas e informe a marca e a categoria de cada uma.
+3. Clique em **Validar abas selecionadas**, confira os avisos e clique em **Importar**.
+
+As colunas são localizadas pelos cabeçalhos, então a posição pode mudar entre abas. Uma coluna só vira tratamento se estiver no cadastro ou na lista `BASE_TREATMENTS` de `product.spreadsheet.ts`; as outras aparecem nos avisos e não são importadas. Categorias sem colunas configuradas recebem os tratamentos da aba.
+
+**CSV:**
 
 1. Baixe o modelo em **Baixar modelo CSV**.
 2. Preencha uma linha por produto. **Cod. WEB, Material, Marca e Categoria** são obrigatórios.
 3. Salve como CSV. O sistema aceita `;` ou `,`, em UTF-8 ou Windows-1252.
-4. Envie o arquivo, confira o resumo e os erros por linha, e clique em **Importar**.
+4. Envie o arquivo, confira o resumo e clique em **Importar**.
 
 Regras:
 
-- Marca, categoria e tratamentos precisam estar cadastrados antes.
-- Cada coluna extra deve ter o nome exato de um tratamento.
+- Com **Criar marcas, categorias e tratamentos que não existem** marcado, os cadastros que faltam são criados. Desmarcado, viram erro.
+- Num CSV, cada coluna extra é um tratamento: confira a lista de novos cadastros para não criar um nome digitado errado.
 - Produto com Cod. WEB existente é atualizado; código novo é criado.
+- Na planilha, código repetido fica com a primeira aba selecionada. Se o preço for diferente, a tela avisa com exemplos.
 - Qualquer erro impede a gravação do arquivo inteiro.
 - **Célula vazia ou `-` numa coluna de tratamento apaga o preço daquele produto.**
 
